@@ -819,6 +819,7 @@ ${SIN_NIVEL}
 - ${LARGO}
 
 ${ESTILO}
+${EVITAR}
 
 ${BANCO}
 
@@ -832,7 +833,7 @@ Respondé solo con el párrafo.`;
 }
 async function mejorar(s,e,al,a,signal){
   const {text}=await ST.sample(promptArea(s,e,al,a),{signal,cache:false});
-  let t=text.trim().replace(/^["«]|["»]$/g,'').split('[NOMBRE]').join(al.nombre);
+  let t=sinEvitar(text.trim().replace(/^["«]|["»]$/g,'').split('[NOMBRE]').join(al.nombre));
   if(t.length>LIMITE) t=t.slice(0,LIMITE);
   setTexto(s,e,al,a,t,true);
 }
@@ -903,7 +904,7 @@ function chatCtx(key){
       aplicar:t=>{ t=t.split('[NOMBRE]').join(al.nombre); if(t.length>LIMITE) t=t.slice(0,LIMITE); setTexto(s,e,al,a,t,true); },
       contexto: obs? `Texto de «Observaciones generales» del informe de la ${etapaTxt(e)} etapa de un/a estudiante de Sala de ${s.edad} años (Córdoba). Suele llevar el saludo y agradecimiento a las familias y, si la docente lo pide, una síntesis breve de la etapa. Lo leen las familias.` : datosArea(s,e,al,a),
       largo: !obs, cidi: !obs && cidiDe(a).length>0,
-      reglas:`- Un solo párrafo, sin viñetas ni títulos, en tercera persona.\n- Escribí [NOMBRE] donde va el nombre del estudiante.\n- ${obs? `Nunca más de ${LIMITE} caracteres.` : LARGO}\n- Sin etiquetas, diagnósticos ni comparaciones con otros niños.\n${SIN_NIVEL}\n- Evaluá solo lo trabajado en esta etapa.${obs?'':'\n'+ESTRUCTURA.replace(/\n- Seguí las indicaciones de VARIACIÓN[^\n]*/,'')+'\n'+PROPUESTAS.replace(' (el orden de los grupos lo indica VARIACIÓN PARA ESTE INFORME)','')+'\n\n'+ESTILO+'\n\n'+BANCO+'\n\n'+ejemplosPara(lista(s,e,a).map(x=>[x,null,evOf(s,e,x.id,al.id)]).filter(z=>z[2]&&z[2].n))}`,
+      reglas:`- Un solo párrafo, sin viñetas ni títulos, en tercera persona.\n- Escribí [NOMBRE] donde va el nombre del estudiante.\n- ${obs? `Nunca más de ${LIMITE} caracteres.` : LARGO}\n- Sin etiquetas, diagnósticos ni comparaciones con otros niños.\n${SIN_NIVEL}\n- Evaluá solo lo trabajado en esta etapa.${obs?'':'\n'+ESTRUCTURA.replace(/\n- Seguí las indicaciones de VARIACIÓN[^\n]*/,'')+'\n'+PROPUESTAS.replace(' (el orden de los grupos lo indica VARIACIÓN PARA ESTE INFORME)','')+'\n\n'+ESTILO+'\n'+EVITAR+'\n\n'+BANCO+'\n\n'+ejemplosPara(lista(s,e,a).map(x=>[x,null,evOf(s,e,x.id,al.id)]).filter(z=>z[2]&&z[2].n))}`,
       sabe: obs? '' : sabeIA(s,e,a)};
   }
   if(k==='sal'){
@@ -980,7 +981,7 @@ async function chatEnviar(key,pedido){
   try{
     const out=await ST.sample.json(chatPrompt(X,base,hist,pedido),{cache:false,signal:C.ctl.signal});
     const m={r:'ia',t:String(out?.respuesta||'').trim()};
-    if(X.tipo==='texto'){ let tx=String(out?.texto||'').trim().replace(/^["«]|["»]$/g,''); if(tx&&tx!==base){ if(tx.length>LIMITE&&key.startsWith('inf')) tx=tx.slice(0,LIMITE); m.txt=tx; } }
+    if(X.tipo==='texto'){ let tx=sinEvitar(String(out?.texto||'').trim().replace(/^["«]|["»]$/g,'')); if(tx&&tx!==base){ if(tx.length>LIMITE&&key.startsWith('inf')) tx=tx.slice(0,LIMITE); m.txt=tx; } }
     else { const c=limpiarCambios(out?.cambios); if(Object.keys(c).length) m.cambios=c; }
     if(!m.t&&!m.txt&&!m.cambios) m.t='No me salió una respuesta. ¿Me lo pedís de otra forma?';
     C.msgs.push(m);
@@ -1093,6 +1094,13 @@ function ejemplosPara(L){
   if(bajos&&altos) return EJEMPLO+'\n\n'+EJEMPLO_APOYO;
   return bajos? EJEMPLO_APOYO : EJEMPLO;
 }
+const EVITAR=`- Palabras que esta escuela no usa: «renarrar», «renarra», «renarración» y sus formas. En su lugar: «vuelve a contar», «cuenta con sus palabras», «recupera la historia», «reconstruye oralmente el relato».`;
+function sinEvitar(t){ return String(t||'')
+  .replace(/\brenarraci[oó]n(es)?\b/gi,(m,pl)=> (m[0]==='R'?'R':'r')+'econstrucci'+(pl?'ones orales':'ón oral'))
+  .replace(/\brenarr(ó|aron)(?![a-záéíóúñ])/gi,(m,f)=> (m[0]==='R'?'V':'v')+(f.toLowerCase()==='ó'?'olvió':'olvieron')+' a contar')
+  .replace(/\brenarrando\b/gi,m=>(m[0]==='R'?'V':'v')+'olviendo a contar')
+  .replace(/\brenarrar\b/gi,m=>(m[0]==='R'?'V':'v')+'olver a contar')
+  .replace(/\brenarra(n)?\b/gi,(m,n)=>(m[0]==='R'?'V':'v')+'uelve'+(n?'n':'')+' a contar'); }
 function alAzar(arr){ return arr[Math.floor(Math.random()*arr.length)]; }
 function variacion(){
   return `VARIACIÓN PARA ESTE INFORME (respetala para que cada informe sea distinto):
