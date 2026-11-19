@@ -481,7 +481,12 @@ const PRECISIONES = [
   ['Se distrae.','Requiere intervenciones para sostener su participación en determinadas propuestas.'],
   ['Le cuesta compartir.','Continúa construyendo acuerdos de convivencia relacionados con el uso compartido de materiales y espacios.'],
   ['Cuenta solo hasta cinco.','Recita la serie numérica oral hasta el cinco y continúa ampliando su repertorio numérico.'],
-  ['No logra resolver la actividad.','Explora diferentes estrategias de resolución y requiere orientaciones docentes para avanzar en la propuesta.']
+  ['No logra resolver la actividad.','Explora diferentes estrategias de resolución y requiere orientaciones docentes para avanzar en la propuesta.'],
+  ['Ensaya expresiones cada vez más variadas.','Incorpora expresiones cada vez más variadas.'],
+  ['Lo aborda con autonomía.','Participa con entusiasmo e iniciativa.'],
+  ['Siempre tiene algo para aportar.','Realiza aportes espontáneos que enriquecen los intercambios.'],
+  ['Con la insistencia de la docente.','Mediante la intervención y las invitaciones de la docente.'],
+  ['Se inicia en respetar los turnos de habla.','Se encuentra en proceso de incorporar el respeto por los turnos de habla.']
 ];
 
 /* ---------- utilidades ---------- */
@@ -796,7 +801,9 @@ function promptArea(s,e,al,a){
   const prev = '';
   const actual = textoDe(s,e,al,a).t;
   const N=t=>String(t||'').split(al.nombre).join('[NOMBRE]'), N2=N;
-  return `Sos docente de Nivel Inicial en Córdoba (Argentina). Redactá el texto del área «${AREA[a].n}» del informe de la ${etapaTxt(e)} etapa de un/a estudiante de Sala de ${s.edad} años. Lo leen las familias y se carga en Ciudadano Digital.
+  return `${persona()}
+
+Tu tarea ahora: redactá el texto del área «${AREA[a].n}» del informe de la ${etapaTxt(e)} etapa de un/a estudiante de Sala de ${s.edad} años. Lo leen las familias y se carga en Ciudadano Digital.
 
 Estudiante: escribí [NOMBRE] donde va su nombre. Género para la concordancia: ${g}${g==='sin especificar'?' (evitá marcas de género referidas al estudiante)':''}.
 
@@ -810,7 +817,7 @@ ${ESTRUCTURA}
 - Formulaciones descriptivas en lugar de generales:
 ${PRECISIONES.map(([x,y])=>`  «${x}» → «${y}»`).join('\n')}
 ${PROPUESTAS}
-- Tercera persona, un solo párrafo, sin viñetas ni títulos.
+- Tercera persona, un solo bloque de texto, sin viñetas, títulos ni saltos de línea.
 - ${TONO}
 - Usá solo los datos dados: no inventes logros, dificultades ni actividades. Integrá el aprendizaje con tus palabras, sin copiarlo entero.
 - Sin etiquetas, diagnósticos ni comparaciones con otros niños.
@@ -825,15 +832,11 @@ ${BANCO}
 
 ${ejemplosPara(L)}
 
-${variacion()}
-
-Antes de responder, revisá tu párrafo: si alguna oración tiene como sujeto un aprendizaje («Su participación en… se fortalece», «La exploración… se amplía»), reescribila con el niño o la niña como sujeto («Participa en…», «Explora…»).
-
-Respondé solo con el párrafo.`;
+Respondé solo con el texto del informe, en un solo bloque.`;
 }
 async function mejorar(s,e,al,a,signal){
   const {text}=await ST.sample(promptArea(s,e,al,a),{signal,cache:false});
-  let t=sinEvitar(text.trim().replace(/^["«]|["»]$/g,'').split('[NOMBRE]').join(al.nombre));
+  let t=sinEvitar(text.trim().replace(/^["«]|["»]$/g,'').split('[NOMBRE]').join(al.nombre)).replace(/\s*\n+\s*/g,' ');
   if(t.length>LIMITE) t=t.slice(0,LIMITE);
   setTexto(s,e,al,a,t,true);
 }
@@ -882,7 +885,8 @@ function micToggle(){
 const CH={};
 const TONO='Tono: cálido y profesional a la vez. Cercano y respetuoso con las familias, claro, sin tecnicismos innecesarios, sin diminutivos ni frases empalagosas. Descriptivo y concreto. Español de Argentina.';
 const PEDIDO_CIDI='Revisá el TEXTO ACTUAL contra los ejes que CiDi sugiere evaluar en esta área. NO propongas una versión nueva: dejá "texto" vacío. En "respuesta" (acá podés usar varias líneas): primero, en una línea, qué ejes ya aparecen en el texto (con pocas palabras cada uno); después, cuáles no aparecen; y cerrá preguntándome si trabajé alguno de esos y cómo lo vi en el niño o la niña, para sumarlo. No supongas que los trabajé.';
-const RAPIDOS={texto:['¿Qué falta de CiDi?','Desarrollalo más','Más cálido','Más profesional','Más corto','Más concreto','Que no repita','Revisá la ortografía'], proy:['Más lúdico','Más corto','Ajustalo a la edad','Sumá una salida o visita','Revisá la ortografía']};
+const PEDIDO_MIRADA='Dame tu mirada pedagógica sobre el TEXTO ACTUAL, como lo haría una colega. En "respuesta": primero, en una o dos oraciones, qué valorás del texto; después, una lista corta numerada con lo que cambiarías y por qué (citá la expresión entre comillas y proponé la alternativa: por ejemplo, palabras que puedan leerse de forma poco favorable, construcciones forzadas o poco precisas, repeticiones o frases que suenan a fórmula). En "texto": tu propuesta de redacción completa aplicando esos cambios, en un solo bloque. No agregues datos nuevos.';
+const RAPIDOS={texto:['Tu mirada pedagógica','¿Qué falta de CiDi?','Desarrollalo más','Más cálido','Más profesional','Más corto','Más concreto','Que no repita','Revisá la ortografía'], proy:['Más lúdico','Más corto','Ajustalo a la edad','Sumá una salida o visita','Revisá la ortografía']};
 const CAMPOS_PROY={t:'Nombre',fund:'Fundamentación',prop:'Propósitos',prod:'Producto final o meta compartida',estr:'Estrategias y organización',rec:'Recursos',evalx:'Evaluación',sec:'Encuentros'};
 function datosArea(s,e,al,a){
   const L=lista(s,e,a).map(x=>[x,CUR_BY_ID[x.id],evOf(s,e,x.id,al.id)]).filter(([x,o,v])=>v&&v.n&&o);
@@ -904,7 +908,7 @@ function chatCtx(key){
       aplicar:t=>{ t=t.split('[NOMBRE]').join(al.nombre); if(t.length>LIMITE) t=t.slice(0,LIMITE); setTexto(s,e,al,a,t,true); },
       contexto: obs? `Texto de «Observaciones generales» del informe de la ${etapaTxt(e)} etapa de un/a estudiante de Sala de ${s.edad} años (Córdoba). Suele llevar el saludo y agradecimiento a las familias y, si la docente lo pide, una síntesis breve de la etapa. Lo leen las familias.` : datosArea(s,e,al,a),
       largo: !obs, cidi: !obs && cidiDe(a).length>0,
-      reglas:`- Un solo párrafo, sin viñetas ni títulos, en tercera persona.\n- Escribí [NOMBRE] donde va el nombre del estudiante.\n- ${obs? `Nunca más de ${LIMITE} caracteres.` : LARGO}\n- Sin etiquetas, diagnósticos ni comparaciones con otros niños.\n${SIN_NIVEL}\n- Evaluá solo lo trabajado en esta etapa.${obs?'':'\n'+ESTRUCTURA.replace(/\n- Seguí las indicaciones de VARIACIÓN[^\n]*/,'')+'\n'+PROPUESTAS.replace(' (el orden de los grupos lo indica VARIACIÓN PARA ESTE INFORME)','')+'\n\n'+ESTILO+'\n'+EVITAR+'\n\n'+BANCO+'\n\n'+ejemplosPara(lista(s,e,a).map(x=>[x,null,evOf(s,e,x.id,al.id)]).filter(z=>z[2]&&z[2].n))}`,
+      reglas:`- Un solo párrafo, sin viñetas ni títulos, en tercera persona.\n- Escribí [NOMBRE] donde va el nombre del estudiante.\n- ${obs? `Nunca más de ${LIMITE} caracteres.` : LARGO}\n- Sin etiquetas, diagnósticos ni comparaciones con otros niños.\n${SIN_NIVEL}\n- Evaluá solo lo trabajado en esta etapa.${obs?'':'\n'+ESTRUCTURA.replace(/\n- Seguí las indicaciones de VARIACIÓN[^\n]*/,'')+'\n'+PROPUESTAS.replace('','')+'\n\n'+ESTILO+'\n'+EVITAR+'\n\n'+BANCO+'\n\n'+ejemplosPara(lista(s,e,a).map(x=>[x,null,evOf(s,e,x.id,al.id)]).filter(z=>z[2]&&z[2].n))}`,
       sabe: obs? '' : sabeIA(s,e,a)};
   }
   if(k==='sal'){
@@ -934,7 +938,8 @@ function chatCtx(key){
   return null;
 }
 function chatPrompt(X,base,hist,pedido){
-  const comun=`Sos una compañera de trabajo de una docente de Nivel Inicial de Córdoba (Argentina). Arman juntas el texto final en una conversación: ella te pide cambios o te cuenta algo más, y vos le proponés la versión nueva.
+  const comun=`${persona()}
+Ahora están conversando para armar juntas el texto final, en un ida y vuelta: ella te cuenta cosas del niño o la niña, te pide cambios, te pregunta tu opinión; vos le respondés como una colega pedagoga (con calidez, criterio y fundamentos) y le proponés la versión nueva cuando corresponde.
 
 QUÉ ES:
 ${X.contexto}
@@ -956,12 +961,12 @@ ${pedido}
 PROYECTO ACTUAL (JSON):
 ${base}
 ${conv}
-Respondé solo con JSON: {"respuesta":"una o dos frases para la docente, en voseo, cálidas y breves","cambios":{solo los campos que cambiás, con el valor completo nuevo; "sec" es una lista de textos}}. Si no cambiás nada, "cambios" va vacío.`;
+Respondé solo con JSON: {"respuesta":"lo que le decís a la docente, en voseo, como una colega pedagoga: cálido, profesional y concreto (entre 1 y 5 oraciones; podés explicar qué cambiaste y por qué)","cambios":{solo los campos que cambiás, con el valor completo nuevo; "sec" es una lista de textos}}. Si no cambiás nada, "cambios" va vacío.`;
   return comun+`
 TEXTO ACTUAL:
 ${base||'(vacío)'}
 ${conv}
-Respondé solo con JSON: {"respuesta":"una o dos frases para la docente, en voseo, cálidas y breves","texto":"la versión nueva completa del texto, o vacío si no hay cambios"}`;
+Respondé solo con JSON: {"respuesta":"lo que le decís a la docente, en voseo, como una colega pedagoga: cálido, profesional y concreto. Podés darle tu opinión, explicar brevemente qué cambiaste y por qué, o hacerle una pregunta. Entre 1 y 5 oraciones; si te pide tu mirada pedagógica, podés extenderte con una lista corta numerada","texto":"la versión nueva completa del texto en un solo bloque, o vacío si no hay cambios"}`;
 }
 function limpiarCambios(c){
   const o={}; if(!c||typeof c!=='object') return o;
@@ -977,11 +982,11 @@ async function chatEnviar(key,pedido){
   const pend=ult&&!ult.usado? ult : null;
   const base = X.tipo==='texto'? (pend? pend.txt : X.base()) : X.base(pend? pend.cambios : null);
   const hist=C.msgs.slice(-8).map(m=>m.r==='u'? 'Docente: '+m.t : 'Vos: '+(m.t||'')+(m.txt||m.cambios?' [propusiste una versión nueva]':'')).join('\n');
-  C.msgs.push({r:'u',t:pedido.startsWith('Desarrollalo más,')?'Desarrollalo más':pedido===PEDIDO_CIDI?'¿Qué falta de CiDi?':pedido}); UI.chatDraft=''; C.ocupado=true; C.ctl=new AbortController(); render(); chatScroll();
+  C.msgs.push({r:'u',t:pedido.startsWith('Desarrollalo más,')?'Desarrollalo más':pedido===PEDIDO_CIDI?'¿Qué falta de CiDi?':pedido===PEDIDO_MIRADA?'Tu mirada pedagógica':pedido}); UI.chatDraft=''; C.ocupado=true; C.ctl=new AbortController(); render(); chatScroll();
   try{
     const out=await ST.sample.json(chatPrompt(X,base,hist,pedido),{cache:false,signal:C.ctl.signal});
     const m={r:'ia',t:String(out?.respuesta||'').trim()};
-    if(X.tipo==='texto'){ let tx=sinEvitar(String(out?.texto||'').trim().replace(/^["«]|["»]$/g,'')); if(tx&&tx!==base){ if(tx.length>LIMITE&&key.startsWith('inf')) tx=tx.slice(0,LIMITE); m.txt=tx; } }
+    if(X.tipo==='texto'){ let tx=sinEvitar(String(out?.texto||'').trim().replace(/^["«]|["»]$/g,'')); if(key.startsWith('inf')) tx=tx.replace(/\s*\n+\s*/g,' '); if(tx&&tx!==base){ if(tx.length>LIMITE&&key.startsWith('inf')) tx=tx.slice(0,LIMITE); m.txt=tx; } }
     else { const c=limpiarCambios(out?.cambios); if(Object.keys(c).length) m.cambios=c; }
     if(!m.t&&!m.txt&&!m.cambios) m.t='No me salió una respuesta. ¿Me lo pedís de otra forma?';
     C.msgs.push(m);
@@ -1001,7 +1006,7 @@ function chatPanel(key){
   const verCambios=c=>Object.entries(c).map(([k,v])=>`<details class="cambio"><summary>${esc(CAMPOS_PROY[k])}</summary><div>${k==='sec'? v.map((x,j)=>`<p><b>Encuentro ${j+1}.</b> ${esc(x)}</p>`).join('') : `<p>${esc(v)}</p>`}</div></details>`).join('');
   const hola = X.tipo==='proy'
     ? 'Partimos del proyecto como está. Pedime cambios con tus palabras: «hacelo más lúdico», «sumá una visita a la plaza», «el encuentro 3 es muy largo»… Te propongo los cambios y vos decidís si los aplicás.'
-    : 'Partimos del texto de arriba. Pedime cambios con tus palabras o contame algo más: «sumá que le encanta la biblioteca», «sacá lo del juego», «más cálido»… Te propongo la versión nueva y vos decidís si la usás.';
+    : `${PREF.nombre?'¡Hola, '+esc(PREF.nombre)+'! ':''}Partimos del texto de arriba. Contame lo que viste de este niño o niña, pedime cambios con tus palabras o pedime mi mirada pedagógica: te digo qué valoro, qué cambiaría y por qué, y te propongo una versión. Vos decidís qué queda.`;
   return `<div class="chat" role="region" aria-label="Conversación con la IA">
     ${X.sabe?`<p class="small muted chat-sabe" style="margin:0"><b>La IA sabe:</b> ${esc(X.sabe)}. Para cambiar qué aprendizaje va con cada propuesta o sumar un resumen, usá «Elegir aprendizajes».</p>`:''}
     <div class="chat-msgs" id="chatMsgs" aria-live="polite">${C.msgs.length?'':`<p class="chat-hola">${hola}</p>`}
@@ -1068,15 +1073,15 @@ function sabeIA(s,e,a){
   const L=lista(s,e,a); if(!L.length) return '';
   return porPropuesta(L.map(x=>[x])).map(([t,it])=> t? `${t} (${it.length})${resumenDe(s,t)?'':' · sin resumen'}` : `sin propuesta (${it.length})`).join(' · ');
 }
-const ESTRUCTURA=`ESTRUCTURA (lo más importante): es un informe evaluativo profesional, NO un relato.
-- Cada idea responde a un aprendizaje y deja claro: el APRENDIZAJE (formulado con tus palabras en el lenguaje del diseño curricular), CÓMO lo logra (grado de logro implícito y, si necesita ayuda, con qué apoyo concreto lo consigue) y DÓNDE se vio (evidencia breve: la actividad o la propuesta).
-- El sujeto de cada oración es el niño o la niña, o una experiencia que «le permitió» aprender algo («La historia de la yerba mate le permitió conocer…»). Nunca hagas sujeto al aprendizaje («La enunciación de la serie… se encuentra…», «La cuantificación… comienza a…») ni describas lo que se trabajó en el grupo sin decir qué hizo el niño o la niña («En las propuestas de ESI se trabajó sobre…»). Nada de «en proceso de fortalecimiento» ni «en proceso de…» como calificación.
-- Respetá el grado de logro de cada aprendizaje: si es pleno, decí que lo hace por su cuenta o con autonomía (no «con poca ayuda»); si es con ayuda, nombrá el apoyo.
-- Una o dos oraciones por aprendizaje. La oración puede empezar por el aprendizaje («Ordena secuencias temporales…») o por la situación («En las propuestas de…», «Durante…»), siempre que en esa misma oración quede claro qué aprendizaje se evalúa.
-- Cuando algo todavía le cuesta, nombrá el apoyo concreto que necesita junto con lo que logra con él (ej.: «A través de preguntas orientadoras e intervenciones que la convocan a participar, logra recuperar algunos acontecimientos…»). Nunca solo la dificultad.
-- No cuentes qué hizo el grupo, cómo surgió el proyecto ni la historia de las actividades. La actividad es evidencia, no escena: sin enumerar pasos ni detalles decorativos.
-- NO cierres con lo que hará después: nada de «Continuará avanzando…», «seguirá trabajando…», próximos desafíos ni expectativas. Lo que todavía no hizo no se escribe. Tampoco recomendaciones como «Será importante continuar ofreciéndole…».
-- Seguí las indicaciones de VARIACIÓN PARA ESTE INFORME: cada informe tiene que tener un orden y una forma distintos para que no parezcan hechos en serie.`;
+const ESTRUCTURA=`CÓMO ESCRIBIR (con oficio pedagógico, no con fórmulas):
+- Es un informe evaluativo: cada idea muestra un aprendizaje, cómo lo vive y lo logra el niño o la niña, y dónde se vio (la actividad o la propuesta, en pocas palabras). Que fluya como un texto escrito por alguien que conoce al niño o la niña: hilado, natural, sin estructuras repetidas.
+- Mostrá al niño o la niña, no solo la lista de aprendizajes: qué le interesa, qué disfruta, cuáles son sus fortalezas y en qué aspectos todavía necesita intervención docente, siempre ligado a un aprendizaje y a lo que registró la docente (no inventes rasgos ni gustos).
+- Lo que todavía cuesta va con delicadeza y desde la intervención, nunca como falta: «Si bien en algunos momentos puede dispersarse, logra reincorporarse a la propuesta mediante las intervenciones y las invitaciones de la docente».
+- Agrupá lo afín (por ejemplo: lenguaje oral y juegos con palabras; lectura; escritura; convivencia) y pasá de un grupo a otro con conectores naturales («Por otra parte», «En las situaciones de…», «Asimismo»).
+- TODO EN UN SOLO BLOQUE de texto, sin saltos de línea ni párrafos separados: CiDi no los admite.
+- Variá el comienzo del texto y de las oraciones; no todas empiezan por el nombre ni por la misma estructura.
+- El sujeto es el niño o la niña (o una experiencia que «le permitió…»), nunca el aprendizaje («Su participación… se fortalece»).
+- No cuentes qué hizo el grupo ni la historia del proyecto; no cierres con lo que hará después («Continuará…», «Será importante…»): lo que todavía no hizo no se escribe.`;
 const EJEMPLO_APOYO=`Ejemplo de la forma buscada para un niño o niña que necesita más acompañamiento (otra área y otra alumna: copiá su forma, nunca su contenido): «[NOMBRE] continúa construyendo sus posibilidades de expresión y participación en diferentes situaciones de intercambio oral y acercamiento a la literatura. Durante la lectura de un cuento necesitó de la motivación y el acompañamiento de la docente para sostener la escucha y mantener la atención durante el desarrollo de la narración. A través de preguntas orientadoras e intervenciones que la convocan a participar, logra recuperar algunos acontecimientos de la historia y compartir sus apreciaciones. Los juegos con rimas y trabalenguas le permitieron explorar los sonidos de las palabras y reconocer semejanzas sonoras, aunque todavía requiere ejemplos y orientación para encontrar nuevas relaciones. En las conversaciones grupales necesita estímulo para expresar sus ideas y sumarse a los intercambios, mostrando mayor disposición cuando se siente acompañada y convocada de manera individual. En las propuestas de escritura colectiva comienza a aproximarse a las diferencias entre lo que se dice y lo que se escribe, realizando aportes cuando cuenta con la orientación necesaria. En relación con la escritura de su nombre, continúa avanzando en su reconocimiento y producción, recurriendo a soportes visuales que funcionan como referencia para este proceso.»`;
 const BANCO=`BANCO DE EXPRESIONES de los informes de esta escuela (usalas como repertorio: combiná, adaptá a la concordancia y variá; no las copies en bloque ni repitas la misma en un texto):
 • Aperturas de área (opcionales; no siempre empiezan por el nombre): «La curiosidad por conocer y comprender el entorno se hizo presente en las distintas experiencias desarrolladas durante esta etapa.» · «A través de juegos y experiencias con materiales concretos, [NOMBRE] tuvo oportunidades de acercarse a…» · «Las experiencias de exploración del ambiente le permitieron a [NOMBRE] acercarse a…» · «demuestra seguridad al enfrentarse a diferentes situaciones problemáticas y pone en juego sus conocimientos para encontrar soluciones» · «participa con entusiasmo y seguridad en las propuestas…, mostrando interés por…» (logro pleno) · «participa de las propuestas… con interés y disposición, involucrándose en situaciones de juego y aprendizaje que requieren…» (avanza) · «participa de las propuestas…, requiriendo acompañamiento frecuente para sostener su participación…» o «continúa construyendo sus posibilidades de… en…» (más apoyo).
@@ -1094,13 +1099,14 @@ function ejemplosPara(L){
   if(bajos&&altos) return EJEMPLO+'\n\n'+EJEMPLO_APOYO;
   return bajos? EJEMPLO_APOYO : EJEMPLO;
 }
-const EVITAR=`- Palabras que esta escuela no usa: «renarrar», «renarra», «renarración» y sus formas. En su lugar: «vuelve a contar», «cuenta con sus palabras», «recupera la historia», «reconstruye oralmente el relato».`;
+const EVITAR=`- Palabras que esta escuela no usa: «renarrar», «renarra», «renarración» y sus formas (en su lugar: «vuelve a contar», «cuenta con sus palabras», «recupera la historia», «reconstruye oralmente el relato»); «insistencia» (en su lugar: «intervención», «invitaciones de la docente»); absolutos como «siempre» o «nunca» referidos al niño o la niña.`;
 function sinEvitar(t){ return String(t||'')
   .replace(/\brenarraci[oó]n(es)?\b/gi,(m,pl)=> (m[0]==='R'?'R':'r')+'econstrucci'+(pl?'ones orales':'ón oral'))
   .replace(/\brenarr(ó|aron)(?![a-záéíóúñ])/gi,(m,f)=> (m[0]==='R'?'V':'v')+(f.toLowerCase()==='ó'?'olvió':'olvieron')+' a contar')
   .replace(/\brenarrando\b/gi,m=>(m[0]==='R'?'V':'v')+'olviendo a contar')
   .replace(/\brenarrar\b/gi,m=>(m[0]==='R'?'V':'v')+'olver a contar')
   .replace(/\brenarra(n)?\b/gi,(m,n)=>(m[0]==='R'?'V':'v')+'uelve'+(n?'n':'')+' a contar'); }
+function persona(){ return `Sos una profesional en pedagogía del Nivel Inicial, con muchos años de experiencia en salas de Córdoba (Argentina), una mirada cálida hacia las infancias y un profundo respeto por la tarea docente. Trabajás codo a codo con ${PREF.nombre? PREF.nombre+', la docente de la sala' : 'la docente de la sala'}: ella conoce a cada niño y niña, y vos la ayudás a convertir lo que observó en un informe profesional, cálido y preciso, que las familias puedan leer y comprender. Escribís con oficio, como una colega, nunca como una máquina.`; }
 function alAzar(arr){ return arr[Math.floor(Math.random()*arr.length)]; }
 function variacion(){
   return `VARIACIÓN PARA ESTE INFORME (respetala para que cada informe sea distinto):
@@ -1112,9 +1118,9 @@ function variacion(){
 const PROPUESTAS=`- Coherencia: mencioná cada proyecto o secuencia SOLO junto a los aprendizajes que figuran debajo de esa PROPUESTA, con su título corto (sin subtítulos) y una sola vez. Nunca relaciones con un proyecto un aprendizaje que no está en él. Los aprendizajes sin propuesta se evalúan sin nombrar proyectos (la evidencia puede ser «en las situaciones cotidianas de la sala»).
 - Cuando un aprendizaje tiene «Actividad en la que se trabajó», usala como la evidencia breve de ese aprendizaje (una sola actividad, en pocas palabras).
 - «Qué se trabajó en esta propuesta» es solo para que entiendas el contexto: no lo cuentes ni lo resumas en el texto.
-- Agrupá seguidos los aprendizajes de una misma propuesta (el orden de los grupos lo indica VARIACIÓN PARA ESTE INFORME).
+- Agrupá seguidos los aprendizajes de una misma propuesta.
 - Priorizá las observaciones y notas de la docente; los indicadores del diseño son solo para elegir palabras precisas (no los copies ni los enumeres).`;
-const EJEMPLO=`Ejemplo de la ESTRUCTURA buscada (es de otra área y de otra alumna: copiá su forma, nunca su contenido): «[NOMBRE] formula hipótesis y busca información en diferentes fuentes (enciclopedias, imágenes y libros) para conocer los elementos del universo, y registra por su cuenta lo que descubre mediante dibujos y aportes en los afiches del grupo, en el marco del proyecto «Pequeños investigadores del universo». Ordena secuencias temporales de acontecimientos de manera cada vez más autónoma, como se observó al organizar las etapas de la misión espacial a la Luna. Establece relaciones entre espacios de distinta escala —su casa, la ciudad, el país, la Tierra y el universo— y las interpreta con claridad a partir del recorrido realizado con el globo terráqueo. Asimismo, reconoce cambios y permanencias en las costumbres de su comunidad: en el proyecto «Nuestras tradiciones», utiliza nociones como «antes» y «ahora» para explicar el origen del mate y cómo llegó hasta las familias. En relación con la convivencia, participa activamente en la construcción de acuerdos de respeto y cuidado, propone pautas y respeta las de sus compañeros, en el marco del proyecto de Educación Sexual Integral.»`;
+const EJEMPLO=`Ejemplo del tono y la forma buscados (otra área y otro alumno: tomá su forma y su calidez, nunca su contenido): «[NOMBRE] amplía su repertorio de palabras e incorpora expresiones cada vez más variadas para comunicar lo que piensa y siente, tal como se observó durante el proyecto «Palabras que juegan, suenan y riman». Disfruta de las posibilidades sonoras y lúdicas del lenguaje y participa con iniciativa en propuestas de rimas y juegos de la tradición oral: crea rimas con su nombre y el de sus compañeros, y explora nuevas palabras a partir de sus sonidos. En las situaciones de lectura de distintos géneros literarios se muestra participativo y realiza aportes espontáneos que enriquecen las conversaciones, especialmente a partir de su imaginación y creatividad. Se interesa por compartir sus interpretaciones y comentarios sobre lo leído. Si bien durante algunos momentos de la lectura o los intercambios puede dispersarse, logra reincorporarse a la propuesta mediante las intervenciones y las invitaciones de la docente. Por otra parte, avanza progresivamente en su participación en situaciones de escritura colectiva de textos breves, tanto literarios como no literarios, realizando aportes para su elaboración. En los intercambios cotidianos con pares y adultos se encuentra en proceso de incorporar el respeto por los turnos de habla, reconociendo progresivamente los momentos para expresar sus ideas y escuchar las de los demás.»`;
 function temaDeProyecto(n){ n=String(n||'').trim(); if(!n) return ''; if(/^(el|la|los|las)\s/.test(n)) return n; if(/^(proyecto|secuencia|unidad|taller)\b/i.test(n)) return (/^(secuencia|unidad)/i.test(n)?'la ':'el ')+lc1(n); return 'el proyecto «'+n+'»'; }
 async function buscarProy(a){
   const s=cur(), e=ET(), P=proyDe(a);
@@ -1965,7 +1971,7 @@ document.addEventListener('click', ev=>{
     chatAbrir(){ micParar(); UI.chat = UI.chat===d.k? null : d.k; UI.chatDraft=''; render(); if(UI.chat) chatScroll(); },
     chatEnviar(){ const v=$('#chatIn')?.value; micParar(true); chatEnviar(d.k, v); },
     chatMic(){ micToggle(); },
-    chatRap(){ chatEnviar(d.k, d.t==='¿Qué falta de CiDi?'? PEDIDO_CIDI : d.t==='Desarrollalo más'? 'Desarrollalo más, hasta unos 1.500 caracteres: precisá cómo logra cada aprendizaje con las observaciones, las notas y las actividades, manteniendo la estructura aprendizaje → cómo lo logra → dónde se vio. Sin relato, sin cierre sobre lo que sigue y sin inventar nada.' : d.t); },
+    chatRap(){ chatEnviar(d.k, d.t==='Tu mirada pedagógica'? PEDIDO_MIRADA : d.t==='¿Qué falta de CiDi?'? PEDIDO_CIDI : d.t==='Desarrollalo más'? 'Desarrollalo más, hasta unos 1.500 caracteres: precisá cómo logra cada aprendizaje con las observaciones, las notas y las actividades, manteniendo la estructura aprendizaje → cómo lo logra → dónde se vio. Sin relato, sin cierre sobre lo que sigue y sin inventar nada.' : d.t); },
     chatParar(){ CH[d.k]?.ctl?.abort(); },
     chatUsar(){ chatUsar(d.k, +d.i); },
     quitarProy(){ const a=d.area, x=proysArea(s,e,a)[+d.i]; if(!x) return; quitarProy(s,e,a,x.t); render(); toast('Quitado. Los aprendizajes que también están en otra propuesta siguen.'); },
