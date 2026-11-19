@@ -361,6 +361,9 @@ details.cidi ul{margin:8px 0 0;padding-left:18px;font-size:14px;line-height:1.45
 .chat{margin-top:12px;border:1px solid var(--line);border-radius:14px;background:var(--paper);padding:12px;display:grid;gap:10px}
 .chat-msgs{display:grid;gap:8px;max-height:460px;overflow:auto;padding:2px}
 .chat-hola{margin:0;font-size:14px;color:var(--muted)}
+.chat-sep{justify-self:center;font-weight:600;padding:2px 10px;border-radius:999px;background:var(--line);margin-top:6px}
+.chat-con{display:flex;align-items:center;gap:6px;flex-wrap:wrap}.chat-con select{width:auto;max-width:100%;padding:4px 8px}
+.chat-area .chat{margin-top:12px}
 .msg{padding:9px 12px;border-radius:12px;max-width:92%;font-size:14.5px;line-height:1.45;color:var(--ink)}
 .msg p{margin:0}.msg.ia p{white-space:pre-wrap}
 .msg.u{justify-self:end;background:var(--accent-soft);border-bottom-right-radius:4px;white-space:pre-wrap}
@@ -701,7 +704,7 @@ function vArea(s,e){
   if(!L.length || UI.picker===a) return tabs+`<div class="stack">${top}</div>`;
   const stus=s.alumnos.map(al=>`<article class="stu" id="stu-${al.id}"><h3>${esc(al.nombre)} <span class="row">${pillArea(s,e,al,a)}</span></h3>
       <div class="mini">${L.map(x=>evBloque(s,e,x,al,true)).join('')}</div>${bloqueNotas(s,e,al,a)}${bloqueTexto(s,e,al,a)}</article>`).join('');
-  return tabs+`<div class="stack">${top}<div class="row" style="justify-content:space-between">${nota}${ST.sample?`<span class="row"><button class="btn" data-act="iaArea"${IA.ocupado?' disabled':''}>${IA.lote?'Mejorando… '+IA.hechos+'/'+IA.total:'Mejorar los textos de todos con IA'}</button>${IA.lote?'<button class="btn ghost" data-act="iaStop">Detener</button>':''}</span>`:''}</div>${stus}</div>`;
+  return tabs+`<div class="stack">${top}${areaTarjeta(s,e,a)}<div class="row" style="justify-content:space-between">${nota}${ST.sample?`<span class="row"><button class="btn" data-act="iaArea"${IA.ocupado?' disabled':''}>${IA.lote?'Mejorando… '+IA.hechos+'/'+IA.total:'Mejorar los textos de todos con IA'}</button>${IA.lote?'<button class="btn ghost" data-act="iaStop">Detener</button>':''}</span>`:''}</div>${stus}</div>`;
 }
 function bloqueProyecto(s,a){
   if(!ST.sample) return '';
@@ -761,8 +764,8 @@ function bloqueTexto(s,e,al,a){
   return `<div class="texto"><div class="row" style="justify-content:space-between"><label class="lab" for="${id}">Texto para CiDi</label><span class="small muted">${origen}</span></div>
     <textarea id="${id}" data-texto="${a}" data-al="${al.id}" rows="${obs?3:4}" style="margin-top:8px">${esc(T.t)}</textarea>
     <div class="foot"><span class="count${n>LIMITE?' over':''}" data-count="${al.id}-${a}">${cuenta(n,a)}</span>
-    <span class="row"><button class="btn ghost sm" data-act="resetTexto" data-al="${al.id}" data-area="${a}"${T.edit?'':' hidden'}>${obs?'Volver al saludo de todos':'Volver a armarlo con los datos'}</button>${ST.sample&&!obs?`<button class="btn sm" data-act="iaUno" data-al="${al.id}" data-area="${a}"${IA.ocupado?' disabled':''}>${IA.actual===al.id+a?'Mejorando…':'Mejorar redacción'}</button>`:''}${chatBoton(`inf|${e}|${al.id}|${a}`)}<button class="btn pri sm" data-act="copiar" data-al="${al.id}" data-area="${a}">Copiar</button></span></div>
-    ${chatPanel(`inf|${e}|${al.id}|${a}`)}
+    <span class="row"><button class="btn ghost sm" data-act="resetTexto" data-al="${al.id}" data-area="${a}"${T.edit?'':' hidden'}>${obs?'Volver al saludo de todos':'Volver a armarlo con los datos'}</button>${ST.sample&&!obs?`<button class="btn sm" data-act="iaUno" data-al="${al.id}" data-area="${a}"${IA.ocupado?' disabled':''}>${IA.actual===al.id+a?'Mejorando…':'Mejorar redacción'}</button>`:''}${obs?chatBoton(`inf|${e}|${al.id}|${a}`):areaBoton(s,e,al,a)}<button class="btn pri sm" data-act="copiar" data-al="${al.id}" data-area="${a}">Copiar</button></span></div>
+    ${obs?chatPanel(`inf|${e}|${al.id}|${a}`):areaPanelAl(e,al,a)}
     <p class="aviso">${AVISO}</p></div>`;
 }
 function bloqueObsAlumno(s,e,al){
@@ -889,15 +892,15 @@ function micToggle(){
 
 /* ---------- memoria pedagógica ---------- */
 function memoriaPrompt(){ const M=(PREF.memoria||[]).filter(Boolean); return M.length? `MEMORIA: lo que ${PREF.nombre||'la docente'} te pidió para todos sus informes (respetalo siempre):\n${M.map(x=>'- '+x).join('\n')}` : ''; }
-function otrosInformes(s,e,al,a){
+function otrosInformes(s,e,al,a,mencion){
   const T=s.txt[e]||{}, out=[];
-  for(const o of s.alumnos){ if(o.id===al.id) continue; const x=(T[o.id]||{})[a]; if(x&&x.edit&&String(x.t||'').trim().length>200) out.push({ts:x.ts||0, t:String(x.t).split(o.nombre).join('[OTRO NIÑO/A]').slice(0,900)}); }
+  for(const o of s.alumnos){ if(o.id===al.id) continue; const x=(T[o.id]||{})[a]; if(x&&x.edit&&String(x.t||'').trim().length>200) out.push({ts:x.ts||0, n:mencion&&mencion.has(o.id)?nombreCorto(o):'', t:String(x.t).split(o.nombre).join('[OTRO NIÑO/A]').slice(0,900)}); }
   out.sort((x,y)=>y.ts-x.ts); const L=out.slice(0,5); if(!L.length) return '';
-  return `OTROS INFORMES DE ESTA ÁREA QUE YA ESCRIBIERON JUNTAS (para que este sea distinto: no repitas sus comienzos, su orden ni sus expresiones características; si la docente pide que no sea igual al anterior, el anterior es el primero de esta lista):\n${L.map((x,i)=>`${i===0?'[EL ÚLTIMO QUE TRABAJARON] ':''}«${x.t}${x.t.length>=900?'…':''}»`).join('\n')}`;
+  return `OTROS INFORMES DE ESTA ÁREA QUE YA ESCRIBIERON JUNTAS (para que este sea distinto: no repitas sus comienzos, su orden ni sus expresiones características; si la docente pide que no sea igual al anterior, el anterior es el primero de esta lista; si nombra a otro niño o niña, su informe es el que lleva su nombre):\n${L.map((x,i)=>`${x.n?`[EL INFORME DE ${x.n}] `:''}${i===0?'[EL ÚLTIMO QUE TRABAJARON] ':''}«${x.t}${x.t.length>=900?'…':''}»`).join('\n')}`;
 }
-function guardarChat(key){ const s=cur(); if(!s||!CH[key]) return; s.chats=s.chats||{}; s.chats[key]={ts:Date.now(), msgs:CH[key].msgs.slice(-8).map(m=>({r:m.r,t:String(m.t||'').slice(0,1500),...(m.txt?{txt:String(m.txt).slice(0,LIMITE)}:{}),...(m.cambios?{cambios:m.cambios}:{}),...(m.usado?{usado:true}:{})}))};
+function guardarChat(key){ const s=cur(); if(!s||!CH[key]) return; s.chats=s.chats||{}; const ar=key.startsWith('area|'); s.chats[key]={ts:Date.now(), ...(ar&&CH[key].al?{al:CH[key].al}:{}), msgs:CH[key].msgs.slice(ar?-24:-8).map(m=>({r:m.r,t:String(m.t||'').slice(0,1500),...(m.al?{al:m.al}:{}),...(m.k?{k:m.k}:{}),...(m.txt?{txt:String(m.txt).slice(0,LIMITE)}:{}),...(m.cambios?{cambios:m.cambios}:{}),...(m.usado?{usado:true}:{})}))};
   const ks=Object.keys(s.chats).sort((x,y)=>s.chats[y].ts-s.chats[x].ts); ks.slice(30).forEach(k=>delete s.chats[k]); persist(); }
-function chatDe(key){ if(CH[key]) return CH[key]; const s=cur(), g=s&&s.chats&&s.chats[key]; return CH[key]={msgs: g? g.msgs.map(m=>({...m})) : []}; }
+function chatDe(key){ if(CH[key]) return CH[key]; const s=cur(), g=s&&s.chats&&s.chats[key]; return CH[key]={msgs: g? g.msgs.map(m=>({...m})) : [], al: g&&g.al||''}; }
 function recordar(txt){ txt=String(txt||'').trim().slice(0,240); if(!txt) return false; PREF.memoria=PREF.memoria||[]; if(PREF.memoria.some(x=>x.toLowerCase()===txt.toLowerCase())) return false; PREF.memoria.push(txt); PREF.memoria=PREF.memoria.slice(-30); guardarPref(); return true; }
 
 /* ---------- conversar con la IA ---------- */
@@ -1000,6 +1003,7 @@ function limpiarCambios(c){
   return o;
 }
 async function chatEnviar(key,pedido){
+  if(key.startsWith('area|')) return areaEnviar(key,pedido);
   pedido=String(pedido||'').trim(); if(!pedido||!ST.sample) return;
   const C=chatDe(key), X=chatCtx(key); if(!X||C.ocupado) return; if(!X.extra) X.extra=memoriaPrompt();
   const ult=[...C.msgs].reverse().find(m=>m.r==='ia'&&(m.txt||m.cambios));
@@ -1021,6 +1025,7 @@ async function chatEnviar(key,pedido){
   C.ocupado=false; C.ctl=null; guardarChat(key); render(); chatScroll();
 }
 function chatUsar(key,i){
+  if(key.startsWith('area|')) return areaUsar(key,i);
   const C=CH[key], X=chatCtx(key), m=C&&C.msgs[i]; if(!m||!X) return;
   X.aplicar(m.txt||m.cambios); C.msgs.forEach(x=>{ if(x.r==='ia') x.usado=false; }); m.usado=true;
   guardarChat(key); render(); toast(X.tipo==='proy'?'Listo, los cambios quedaron en el proyecto':'Listo, el texto quedó guardado'); chatScroll();
@@ -1044,6 +1049,127 @@ function chatPanel(key){
     ${C.ocupado?'<div class="msg ia pensando">Escribiendo…</div>':''}</div>
     <div class="chips chat-rap">${RAPIDOS[X.tipo].filter(r=>(r!=='Desarrollalo más'||X.largo)&&(r!=='¿Qué falta de CiDi?'||X.cidi)).map(r=>`<button type="button" class="chip" data-act="chatRap" data-k="${esc(key)}" data-t="${esc(r)}"${C.ocupado?' disabled':''}>${esc(r)}</button>`).join('')}</div>
     <div class="chat-in"><textarea id="chatIn" rows="2" placeholder="${SR?'Escribí o tocá el micrófono para dictar qué querés cambiar o sumar…':'Escribí qué querés cambiar o sumar…'}" aria-label="Mensaje para la IA">${esc(UI.chatDraft||'')}</textarea>${C.ocupado?'':micBoton()}${C.ocupado?`<button class="btn sm" data-act="chatParar" data-k="${esc(key)}">Detener</button>`:`<button class="btn pri sm" data-act="chatEnviar" data-k="${esc(key)}">Enviar</button>`}</div>
+    <p class="small muted" style="margin:0">La IA propone; vos decidís cómo queda. Revisá siempre la versión final.</p>
+  </div>`;
+}
+
+/* ---------- conversación por área: un hilo para todo el grupo ---------- */
+const sinAc=t=>String(t||'').normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase();
+function convKey(e,a){ return `area|${e}|${a}`; }
+function areaAl(C){ const s=cur(); return C&&C.al? s.alumnos.find(x=>x.id===C.al) : null; }
+function nombreCorto(al){ return String(al.nombre||'').trim().split(/\s+/)[0]; }
+function buscarAlumno(s,txt){
+  const T=' '+sinAc(txt)+' ', hits=[];
+  const pos=(n)=>{ if(!n) return -1; const m=new RegExp('(^|[^a-zñ])'+n.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+'(?![a-zñ])').exec(T); return m? m.index+m[1].length : -1; };
+  for(const al of s.alumnos){
+    const full=sinAc(al.nombre).trim(), first=sinAc(nombreCorto(al));
+    let p=pos(full), exacto=p>=0; if(p<0) p=pos(first);
+    if(p>=0) hits.push({al,p,exacto,first});
+  }
+  if(!hits.length) return {al:null};
+  const fuerte=/(vamos|seguimos|sigamos|pasemos|pasamos|arranquemos|empecemos|hagamos|ahora|ahora va|toca)\s+(con|a|el de|la de|por)?\s*(el|la)?\s*(de|informe de|texto de)?\s*$/;
+  hits.sort((x,y)=>{ const fx=fuerte.test(T.slice(0,x.p).slice(-40)), fy=fuerte.test(T.slice(0,y.p).slice(-40)); return (fy-fx)||(x.p-y.p); });
+  const h=hits[0];
+  if(!h.exacto){ const mismos=s.alumnos.filter(o=>sinAc(nombreCorto(o))===h.first); if(mismos.length>1) return {al:null, dudas:mismos}; }
+  return {al:h.al};
+}
+function otrasAreas(s,e,al,a){
+  const T=(s.txt[e]||{})[al.id]||{}, out=[];
+  for(const x of AREAS){ if(x.k===a||x.k==='obs') continue; const v=T[x.k]; if(v&&v.edit&&String(v.t||'').trim().length>150) out.push(`- ${AREA[x.k].n}: «${String(v.t).split(al.nombre).join('[NOMBRE]').slice(0,500)}${v.t.length>500?'…':''}»`); }
+  return out.length? `LO QUE YA ESCRIBIERON DE [NOMBRE] EN OTRAS ÁREAS (para conocer al niño o la niña y no repetir las mismas expresiones ni el mismo comienzo; no traigas a este texto logros de otras áreas salvo que la docente lo pida):\n${out.join('\n')}` : '';
+}
+function estadoGrupo(s,e,a){
+  return s.alumnos.map(o=>{ const T=textoDe(s,e,o,a), n=lista(s,e,a).filter(x=>(evOf(s,e,x.id,o.id)||{}).n).length;
+    return `- ${nombreCorto(o)}: ${T.edit?'texto ya trabajado':n?'tiene registros, texto armado automáticamente':'sin registros todavía'}`; }).join('\n');
+}
+function areaGeneralPrompt(s,e,a,hist,pedido){
+  return `${persona()}
+Están conversando sobre los informes del área «${AREA[a].n}» de la ${etapaTxt(e)} etapa, Sala de ${s.edad} años. Es una sola conversación para todo el grupo: van de un niño o niña a otro.
+${TONO}
+Ahora la docente no nombró a ningún niño o niña en particular. Respondele como colega pedagoga: si quiere trabajar un informe, preguntale con quién empiezan (o seguí con el que te diga); si te pregunta algo general (cómo encarar el área, qué mirar, cómo decir algo), respondé con criterio y ejemplos breves. No escribas informes en esta respuesta.
+Estado del grupo en esta área:
+${estadoGrupo(s,e,a)}
+${memoriaPrompt()}
+${hist?`\nCONVERSACIÓN HASTA AHORA:\n${hist}\n`:''}
+PEDIDO NUEVO DE LA DOCENTE:
+${pedido}
+
+Respondé solo con JSON: {"respuesta":"lo que le decís, en voseo, cálido y concreto (1 a 5 oraciones)","recordar":"solo si expresó una preferencia general para todos sus informes; si no, vacío"}`;
+}
+async function areaEnviar(key,pedido){
+  pedido=String(pedido||'').trim(); if(!pedido||!ST.sample) return;
+  const s=cur(), [,e,a]=key.split('|'), C=chatDe(key); if(C.ocupado) return;
+  const B=buscarAlumno(s,pedido);
+  C.msgs.push({r:'u',t:pedido.startsWith('Desarrollalo más,')?'Desarrollalo más':pedido===PEDIDO_CIDI?'¿Qué falta de CiDi?':pedido===PEDIDO_MIRADA?'Tu mirada pedagógica':pedido, al:C.al||''});
+  UI.chatDraft='';
+  if(B.dudas){ C.msgs.push({r:'ia',t:`¿Con cuál ${nombreCorto(B.dudas[0])}? Tengo a ${joinY(B.dudas.map(o=>o.nombre))}. Decime el nombre completo y seguimos.`, al:C.al||''}); guardarChat(key); render(); chatScroll(); return; }
+  const cambio=!!(B.al && B.al.id!==C.al);
+  if(cambio){ C.al=B.al.id; C.msgs[C.msgs.length-1].al=C.al; if(UI.modo==='alumno') UI.al=C.al; }
+  const al=areaAl(C), k=al? `inf|${e}|${al.id}|${a}` : '';
+  const N=t=>al? String(t||'').split(al.nombre).join('[NOMBRE]').split(nombreCorto(al)).join('[NOMBRE]') : String(t||'');
+  const quien=id=>{ if(!id) return ''; if(al&&id===al.id) return ' (sobre [NOMBRE])'; const o=s.alumnos.find(x=>x.id===id); return o? ` (sobre ${nombreCorto(o)})` : ''; };
+  const hist=C.msgs.slice(-13,-1).map(m=>m.r==='u'? 'Docente'+quien(m.al)+': '+N(m.t) : 'Vos'+quien(m.al)+': '+N(m.t||'')+(m.txt?' [propusiste una versión del texto]':'')).join('\n');
+  C.ocupado=true; C.ctl=new AbortController(); render(); chatScroll();
+  try{
+    let pr, X=null, base='';
+    if(!al) pr=areaGeneralPrompt(s,e,a,hist,pedido);
+    else {
+      X=chatCtx(k);
+      const pend=[...C.msgs].reverse().find(m=>m.r==='ia'&&m.txt&&m.al===al.id);
+      base = pend&&!pend.usado? pend.txt : X.base();
+      const mencion=new Set(); C.msgs.filter(m=>m.r==='u').slice(-12).forEach(m=>{ const b=buscarAlumno(s,m.t); if(b.al&&b.al.id!==al.id) mencion.add(b.al.id); });
+      const otros=otrosInformes(s,e,al,a,mencion);
+      const yaSug=C.msgs.some(m=>m.r==='ia'&&m.al===al.id&&/(quer[eé]s que (sume|agregue)|se podr[ií]a sumar|podr[ií]amos sumar|qued[oó] corto|sigue corto|es corto)/i.test(m.t||''));
+      X.largo=X.largo&&!yaSug;
+      X.extra=[memoriaPrompt(), otros, otrasAreas(s,e,al,a), `CONVERSACIÓN DE ÁREA: con la docente van trabajando los informes de todo el grupo en este mismo hilo. Ahora están con [NOMBRE]. Los mensajes marcados «sobre otro nombre» son de otros niños: usalos para entender lo que ella busca (tono, preferencias, qué no quiere repetir), nunca para traer datos de esos niños a este texto.
+REFERENCIAS DE CALIDAD: los modelos de esta escuela que te pasó la docente (los ejemplos y el BANCO DE EXPRESIONES) son tu vara de tono, fluidez y calidez: escribí con esa naturalidad, como una docente que conoce al niño o la niña, nunca con fórmulas.
+CÓMO CONVERSAR: variá cómo empezás tus respuestas (no arranques siempre con «¡Qué lindo!», «Perfecto» ni repitas la estructura de tu mensaje anterior). Si falta información para que el informe de [NOMBRE] sea fiel (por ejemplo, no hay observaciones), preguntale algo concreto en lugar de rellenar.`].filter(Boolean).join('\n\n');
+      pr=chatPrompt(X,base,hist,N(pedido));
+    }
+    let out; try{ out=await ST.sample.json(pr,{cache:false,signal:C.ctl.signal}); }
+    catch(e1){ if(e1?.code==='cancelled') throw e1; out=await ST.sample.json(pr+'\n\nIMPORTANTE: tu respuesta tiene que ser SOLO el objeto JSON pedido, válido, sin texto antes ni después. Si querés preguntarle algo a la docente, ponelo en "respuesta" y dejá "texto" vacío.',{cache:false,signal:C.ctl.signal}); }
+    const m={r:'ia',t:String(out?.respuesta||'').trim(), al:al?al.id:'', k};
+    if(al){ let tx=sinEvitar(String(out?.texto||'').trim().replace(/^["«]|["»]$/g,'')).replace(/\s*\n+\s*/g,' '); if(tx&&tx!==base){ if(tx.length>LIMITE) tx=tx.slice(0,LIMITE); m.txt=tx; } }
+    if(!m.t&&!m.txt) m.t='No me salió una respuesta. ¿Me lo pedís de otra forma?';
+    if(out?.recordar && recordar(out.recordar)) m.rec=String(out.recordar).trim().slice(0,240);
+    C.msgs.push(m);
+  }catch(err){ if(err?.code!=='cancelled') C.msgs.push({r:'ia',t:errIA(err).replace('No se pudo mejorar el texto.','No pude responder.'), al:al?al.id:''}); }
+  C.ocupado=false; C.ctl=null; guardarChat(key); render(); chatScroll(); if(cambio) setTimeout(()=>$('#chatArea')?.scrollIntoView({block:'nearest',behavior:'smooth'}),40);
+}
+function areaUsar(key,i){
+  const C=CH[key], m=C&&C.msgs[i]; if(!m||!m.k) return; const X=chatCtx(m.k); if(!X) return;
+  X.aplicar(m.txt); C.msgs.forEach(x=>{ if(x.r==='ia'&&x.al===m.al) x.usado=false; }); m.usado=true;
+  guardarChat(key); render(); toast('Listo, quedó en el informe de '+(cur().alumnos.find(x=>x.id===m.al)||{}).nombre); chatScroll();
+}
+function areaBoton(s,e,al,a){
+  if(!ST.sample) return ''; const key=convKey(e,a), C=chatDe(key), ab=UI.chat===key&&C.al===al.id;
+  return `<button class="btn sm${ab?' activo':''}" data-act="chatAl" data-k="${esc(key)}" data-al="${al.id}" aria-expanded="${ab}">${ab?'Cerrar conversación':'Conversar con la IA'}</button>`;
+}
+function areaTarjeta(s,e,a){
+  if(!ST.sample) return ''; const key=convKey(e,a), C=chatDe(key), ab=UI.chat===key, al=areaAl(C);
+  const n=C.msgs.filter(m=>m.r==='u').length;
+  return `<section class="card chat-area"><div class="row" style="justify-content:space-between"><div><h2 style="font-size:19px;margin:0">Conversar sobre los informes de ${esc(AREA[a].corto||AREA[a].n)}</h2><p class="small muted" style="margin:4px 0 0">Un solo hilo para todo el grupo, como en un chat: «ahora vamos con Valentín», «hacelo distinto al de Noah». Reconozco el nombre, uso sus registros y recuerdo lo que fuimos hablando.${n?` · ${n} mensaje${n>1?'s':''}`:''}</p></div><button class="btn${ab?' activo':' pri'}" data-act="chatAbrir" data-k="${esc(key)}" aria-expanded="${ab}">${ab?'Cerrar':n?'Seguir conversando':'Empezar a conversar'}</button></div>
+    ${ab&&!al?areaPanel(key):''}${ab&&al?`<p class="small" style="margin:10px 0 0">Estamos con <b>${esc(al.nombre)}</b>: la conversación está abajo, junto a su texto. <button class="linkish" data-act="chatIr">Ir</button></p>`:''}</section>`;
+}
+function areaPanelAl(e,al,a){ const key=convKey(e,a); if(UI.chat!==key) return ''; const C=chatDe(key); return C.al===al.id? areaPanel(key) : ''; }
+function areaPanel(key){
+  const s=cur(), [,e,a]=key.split('|'), C=chatDe(key), al=areaAl(C), X=al? chatCtx(`inf|${e}|${al.id}|${a}`) : null;
+  const MEM=(PREF.memoria||[]);
+  const verDe=m=>{ const o=m.al&&s.alumnos.find(x=>x.id===m.al); return t=>o? String(t).split('[NOMBRE]').join(o.nombre) : String(t); };
+  const hechos=new Set(s.alumnos.filter(o=>textoDe(s,e,o,a).edit).map(o=>o.id));
+  const sel=`<label class="small chat-con">Estamos con <select data-chatal="${esc(key)}" aria-label="Estudiante de la conversación"><option value="">— elegí o decímelo en el chat —</option>${s.alumnos.map(o=>`<option value="${o.id}"${al&&o.id===al.id?' selected':''}>${esc(o.nombre)}${hechos.has(o.id)?' ✓':''}</option>`).join('')}</select></label>`;
+  const hola=`${PREF.nombre?'¡Hola, '+esc(PREF.nombre)+'! ':''}Esta es nuestra conversación de ${esc(AREA[a].corto||AREA[a].n)} para todo el grupo. Decime con quién vamos («vamos con ${esc(nombreCorto(s.alumnos[0]))}») y lo armamos juntas: contame lo que viste, pedime cambios o mi mirada pedagógica. Me acuerdo de lo que ya trabajamos con los demás para que cada informe sea distinto.`;
+  let ult='';
+  const msgs=C.msgs.map((m,i)=>{ const o=m.al&&s.alumnos.find(x=>x.id===m.al); const tag=o&&o.id!==ult? `<div class="chat-sep small muted">${esc(o.nombre)}</div>` : ''; if(o) ult=o.id; const ver=verDe(m);
+    return tag+(m.r==='u'? `<div class="msg u">${esc(m.t)}</div>` : `<div class="msg ia">${m.t?`<p>${esc(ver(m.t))}</p>`:''}${m.rec?`<p class="small" style="margin-top:6px;opacity:.85">📌 Lo guardé para tus próximos informes: «${esc(m.rec)}»</p>`:''}${m.txt?`<textarea class="prop propEd" data-chatedit="${i}" data-k="${esc(key)}" aria-label="Versión propuesta (podés editarla)">${esc(ver(m.txt))}</textarea><div class="small muted" style="margin-top:4px">Podés editarla acá antes de usarla.</div><div class="row" style="margin-top:8px">${m.usado?`<span class="pill ok">En uso en el informe de ${esc(o?nombreCorto(o):'')}</span>`:`<button class="btn pri sm" data-act="chatUsar" data-k="${esc(key)}" data-i="${i}">Usar en el informe de ${esc(o?nombreCorto(o):'')}</button>`}</div>`:''}</div>`); }).join('');
+  return `<div class="chat" id="chatArea" role="region" aria-label="Conversación de ${esc(AREA[a].n)}">
+    ${MEM.length?`<details class="chat-mem"><summary class="small">Lo que recuerdo de cómo te gusta trabajar (${MEM.length})</summary><ul>${MEM.map((x,i)=>`<li><span>${esc(x)}</span> <button type="button" class="btn ghost sm" data-act="memBorrar" data-i="${i}" aria-label="Olvidar: ${esc(x)}">Olvidar</button></li>`).join('')}</ul></details>`:''}
+    <div class="row" style="justify-content:space-between;margin:-4px 0 0">${sel}${C.msgs.length?`<button type="button" class="btn ghost sm" data-act="chatNueva" data-k="${esc(key)}">Empezar conversación nueva</button>`:''}</div>
+    ${X&&X.sabe?`<p class="small muted chat-sabe" style="margin:0"><b>La IA sabe:</b> ${esc(X.sabe)}.</p>`:''}
+    <div class="chat-msgs" id="chatMsgs" aria-live="polite">${C.msgs.length?'':`<p class="chat-hola">${hola}</p>`}${msgs}
+    ${C.ocupado?'<div class="msg ia pensando">Escribiendo…</div>':''}</div>
+    ${al?`<div class="chips chat-rap">${RAPIDOS.texto.filter(r=>(r!=='Desarrollalo más'||X.largo)&&(r!=='¿Qué falta de CiDi?'||X.cidi)).map(r=>`<button type="button" class="chip" data-act="chatRap" data-k="${esc(key)}" data-t="${esc(r)}"${C.ocupado?' disabled':''}>${esc(r)}</button>`).join('')}</div>`:''}
+    <div class="chat-in"><textarea id="chatIn" rows="2" placeholder="${al?`Sobre ${esc(nombreCorto(al))}, o «vamos con…» para pasar a otro`:'Ej.: «vamos con '+esc(nombreCorto(s.alumnos[0]))+'»'}${SR?' (podés dictar con el micrófono)':''}" aria-label="Mensaje para la IA">${esc(UI.chatDraft||'')}</textarea>${C.ocupado?'':micBoton()}${C.ocupado?`<button class="btn sm" data-act="chatParar" data-k="${esc(key)}">Detener</button>`:`<button class="btn pri sm" data-act="chatEnviar" data-k="${esc(key)}">Enviar</button>`}</div>
     <p class="small muted" style="margin:0">La IA propone; vos decidís cómo queda. Revisá siempre la versión final.</p>
   </div>`;
 }
@@ -2005,7 +2131,9 @@ document.addEventListener('click', ev=>{
     chatParar(){ CH[d.k]?.ctl?.abort(); },
     chatUsar(){ chatUsar(d.k, +d.i); },
     memBorrar(){ (PREF.memoria||[]).splice(+d.i,1); guardarPref(); render(); toast('Listo, lo olvidé'); },
-    chatNueva(){ CH[d.k]={msgs:[]}; const s=cur(); if(s&&s.chats) delete s.chats[d.k]; persist(); render(); chatScroll(); },
+    chatAl(){ micParar(); const C=chatDe(d.k); if(UI.chat===d.k&&C.al===d.al){ UI.chat=null; } else { UI.chat=d.k; C.al=d.al; guardarChat(d.k); } UI.chatDraft=''; render(); if(UI.chat) chatScroll(); },
+    chatIr(){ $('#chatArea')?.scrollIntoView({block:'start',behavior:'smooth'}); },
+    chatNueva(){ const al0=CH[d.k]&&CH[d.k].al; CH[d.k]={msgs:[],al:d.k.startsWith('area|')?(al0||''):''}; const s=cur(); if(s&&s.chats) delete s.chats[d.k]; persist(); if(d.k.startsWith('area|')) guardarChat(d.k); render(); chatScroll(); },
     quitarProy(){ const a=d.area, x=proysArea(s,e,a)[+d.i]; if(!x) return; quitarProy(s,e,a,x.t); render(); toast('Quitado. Los aprendizajes que también están en otra propuesta siguen.'); },
     revisado(){ const R=(s.rev[e][d.al]=s.rev[e][d.al]||{c:[],ok:false}); R.ok=d.v==='1'; persist(); render(); if(R.ok) toast('Informe marcado como revisado'); }
   };
@@ -2024,6 +2152,7 @@ document.addEventListener('change', ev=>{
   if(t.id==='cierreArea'){ UI.cierreArea=t.value; return; }
   if(t.id==='notaFiltro'){ UI.notaFiltro=t.value; render(); return; }
   if(t.id==='alPick'){ UI.al=t.value; render(); return; }
+  if(t.dataset.chatal){ const C=chatDe(t.dataset.chatal); C.al=t.value; if(C.al&&UI.modo==='alumno') UI.al=C.al; guardarChat(t.dataset.chatal); render(); chatScroll(); return; }
   if(t.id==='restaurar' && t.files[0]){ const f=new FileReader(); f.onload=()=>{ try{ const x=JSON.parse(f.result); if(!x||!x.S||!x.S.salas) throw 0; S=x.S; for(const k in S.salas) normal(S.salas[k]); if(!S.salas[S.actual]) S.actual=Object.keys(S.salas)[0]; if(x.PREF) Object.assign(PREF,x.PREF,{oculto:PREF.oculto}); aplicarPref(); UI.pantalla=null; persist(); render(); toast('Copia restaurada'); }catch(e){ toast('Ese archivo no es una copia del Cuaderno'); } }; f.readAsText(t.files[0]); t.value=''; return; }
   if(t.id==='pModelo' && t.files[0]){ cargarModelo(s,t.files[0]); t.value=''; return; }
   if(t.dataset.papr){ const p=proyArr(s).find(x=>x.id===UI.proyEd); if(p){ const antes=(p.aps||[]).slice(); const A=new Set(p.aps||[]); if(t.checked) A.add(t.dataset.papr); else A.delete(t.dataset.papr); p.aps=[...A]; sincronizarMetas(s,p,antes); persist(); const h=document.querySelector('.pform h2 .pill'); } return; }
@@ -2047,7 +2176,7 @@ document.addEventListener('input', ev=>{
   const t=ev.target, s=cur(), e=ET();
   if(t.id==='chatIn'){ UI.chatDraft=t.value; return; }
   if(t.dataset.resumen!==undefined){ const x=proysArea(s,e,t.dataset.area)[+t.dataset.resumen]; if(x){ s.resumenes=s.resumenes||{}; s.resumenes[x.t]=t.value; persist(); } return; }
-  if(t.dataset.chatedit){ const C=CH[t.dataset.k], X=chatCtx(t.dataset.k), m=C&&C.msgs[+t.dataset.chatedit]; if(m){ let v=t.value; const al=t.dataset.k.startsWith('inf|')? cur().alumnos.find(x=>x.id===t.dataset.k.split('|')[2]) : null; if(al) v=v.split(al.nombre).join('[NOMBRE]'); m.txt=v; m.usado=false; } autosize(t); return; }
+  if(t.dataset.chatedit){ const C=CH[t.dataset.k], X=chatCtx(t.dataset.k), m=C&&C.msgs[+t.dataset.chatedit]; if(m){ let v=t.value; const al=t.dataset.k.startsWith('inf|')? cur().alumnos.find(x=>x.id===t.dataset.k.split('|')[2]) : t.dataset.k.startsWith('area|')? cur().alumnos.find(x=>x.id===m.al) : null; if(al) v=v.split(al.nombre).join('[NOMBRE]'); m.txt=v; m.usado=false; } autosize(t); return; }
   if(t.dataset.dobs){ const t2=UI.diagT||diagPendiente(s)||epocaDiag()||'inicio'; diagDe(s,t2).obs[t.dataset.dobs]=t.value; persist(); refrescarDiag(); return; }
   if(t.id==='dgrupo'){ const t2=UI.diagT||diagPendiente(s)||epocaDiag()||'inicio'; diagDe(s,t2).grupo=t.value; persist(); refrescarDiag(); return; }
   if(t.id==='dtexto'){ const t2=UI.diagT||diagPendiente(s)||epocaDiag()||'inicio'; diagDe(s,t2).texto=t.value; persist(); return; }
@@ -2092,5 +2221,4 @@ document.addEventListener('change',ev=>{ const t=ev.target; if(t.dataset?.pf==='
 })();
 </script>
 
-</body>
-</html>
+</body></html>
