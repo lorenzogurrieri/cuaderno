@@ -351,6 +351,7 @@ body::before{background:var(--bar)}
 .secs span{color:var(--bar-muted)}
 h1,h2,h3{color:var(--head)}
 .stu h3,.area > header h2{color:var(--head)}
+details.chat-mem{font-size:14px}details.chat-mem summary{cursor:pointer;color:var(--muted)}details.chat-mem ul{margin:6px 0 0;padding-left:18px}details.chat-mem li{margin:3px 0}
 details.resumen{margin-top:4px}details.resumen summary{cursor:pointer;color:var(--muted)}details.resumen textarea{width:100%;box-sizing:border-box;margin-top:6px;font:inherit;font-size:14px}
 /* guía CiDi */
 details.cidi{border:1px dashed var(--line);border-radius:10px;padding:8px 12px;margin-bottom:12px;background:var(--paper)}
@@ -541,7 +542,7 @@ function borrador(s,e,al,a){
 }
 function saludoPara(s,e,al){ return String((s.saludo||{})[e]||'').split('[NOMBRE]').join(al.nombre).trim(); }
 function textoDe(s,e,al,a){ const t=((s.txt[e]||{})[al.id]||{})[a]; return t&&t.edit? t : {t: a==='obs'? saludoPara(s,e,al) : borrador(s,e,al,a), edit:false}; }
-function setTexto(s,e,al,a,t,ia){ const T=s.txt[e]; (T[al.id]=T[al.id]||{})[a]={t,edit:true,ia:!!ia}; persist(); }
+function setTexto(s,e,al,a,t,ia){ const T=s.txt[e]; (T[al.id]=T[al.id]||{})[a]={t,edit:true,ia:!!ia,ts:Date.now()}; persist(); }
 function resetTexto(s,e,al,a){ const T=s.txt[e][al.id]; if(T) delete T[a]; persist(); }
 
 /* ---------- guardado ---------- */
@@ -562,6 +563,7 @@ async function escribir(){
     }
   }catch(e){ setStatus('No se pudo guardar', true); }
 }
+window.addEventListener('pagehide',()=>{ if(ST.timer){ clearTimeout(ST.timer); ST.timer=null; escribir(); } });
 function cargarLocal(){ try{ const x=JSON.parse(localStorage.getItem('informes-sala-v2')||'null'); if(x&&x.salas) return x; }catch(e){} return null; }
 const descargaLocal={ save: async ({filename,data})=>{ const url=URL.createObjectURL(data), a=document.createElement('a'); a.href=url; a.download=filename; document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(url),4000); } };
 async function iniciarGuardado(){
@@ -573,7 +575,7 @@ async function iniciarGuardado(){
     ST.mode='db'; ST.db=db; ST.uid=id;
     try{
       const snap=await db.collection('data/users/'+id).get(), salas={}, txts={};
-      snap.docs.forEach(d=>{ const b=d.data(); if(d.id==='v2prefs'){ Object.assign(PREF,{tema:b.tema||PREF.tema,letra:b.letra||PREF.letra,nombre:b.nombre??PREF.nombre,efem:b.efem??PREF.efem}); aplicarPref(); try{localStorage.setItem('cuaderno-pref',JSON.stringify(PREF))}catch(e){} } else if(d.id.startsWith('v2s-')) salas[d.id.slice(4)]=b; else if(d.id.startsWith('v2t-')) txts[d.id.slice(4)]=b.txt; });
+      snap.docs.forEach(d=>{ const b=d.data(); if(d.id==='v2prefs'){ Object.assign(PREF,{tema:b.tema||PREF.tema,letra:b.letra||PREF.letra,nombre:b.nombre??PREF.nombre,efem:b.efem??PREF.efem,memoria:Array.isArray(b.memoria)?b.memoria:(PREF.memoria||[])}); aplicarPref(); try{localStorage.setItem('cuaderno-pref',JSON.stringify(PREF))}catch(e){} } else if(d.id.startsWith('v2s-')) salas[d.id.slice(4)]=b; else if(d.id.startsWith('v2t-')) txts[d.id.slice(4)]=b.txt; });
       if(Object.keys(salas).length){
         for(const k in salas){ salas[k].txt=txts[k]||{}; normal(salas[k]); }
         const pref=(()=>{try{return localStorage.getItem('informes2-actual')}catch(e){return null}})();
@@ -832,6 +834,10 @@ ${BANCO}
 
 ${ejemplosPara(L)}
 
+${memoriaPrompt()}
+
+${otrosInformes(s,e,al,a)}
+
 Respondé solo con el texto del informe, en un solo bloque.`;
 }
 async function mejorar(s,e,al,a,signal){
@@ -881,6 +887,19 @@ function micToggle(){
   try{ rec.start(); REC=rec; render(); chatScroll(); }catch(_){ REC=null; toast('No pude activar el micrófono. Probá de nuevo.'); }
 }
 
+/* ---------- memoria pedagógica ---------- */
+function memoriaPrompt(){ const M=(PREF.memoria||[]).filter(Boolean); return M.length? `MEMORIA: lo que ${PREF.nombre||'la docente'} te pidió para todos sus informes (respetalo siempre):\n${M.map(x=>'- '+x).join('\n')}` : ''; }
+function otrosInformes(s,e,al,a){
+  const T=s.txt[e]||{}, out=[];
+  for(const o of s.alumnos){ if(o.id===al.id) continue; const x=(T[o.id]||{})[a]; if(x&&x.edit&&String(x.t||'').trim().length>200) out.push({ts:x.ts||0, t:String(x.t).split(o.nombre).join('[OTRO NIÑO/A]').slice(0,900)}); }
+  out.sort((x,y)=>y.ts-x.ts); const L=out.slice(0,5); if(!L.length) return '';
+  return `OTROS INFORMES DE ESTA ÁREA QUE YA ESCRIBIERON JUNTAS (para que este sea distinto: no repitas sus comienzos, su orden ni sus expresiones características; si la docente pide que no sea igual al anterior, el anterior es el primero de esta lista):\n${L.map((x,i)=>`${i===0?'[EL ÚLTIMO QUE TRABAJARON] ':''}«${x.t}${x.t.length>=900?'…':''}»`).join('\n')}`;
+}
+function guardarChat(key){ const s=cur(); if(!s||!CH[key]) return; s.chats=s.chats||{}; s.chats[key]={ts:Date.now(), msgs:CH[key].msgs.slice(-8).map(m=>({r:m.r,t:String(m.t||'').slice(0,1500),...(m.txt?{txt:String(m.txt).slice(0,LIMITE)}:{}),...(m.cambios?{cambios:m.cambios}:{}),...(m.usado?{usado:true}:{})}))};
+  const ks=Object.keys(s.chats).sort((x,y)=>s.chats[y].ts-s.chats[x].ts); ks.slice(30).forEach(k=>delete s.chats[k]); persist(); }
+function chatDe(key){ if(CH[key]) return CH[key]; const s=cur(), g=s&&s.chats&&s.chats[key]; return CH[key]={msgs: g? g.msgs.map(m=>({...m})) : []}; }
+function recordar(txt){ txt=String(txt||'').trim().slice(0,240); if(!txt) return false; PREF.memoria=PREF.memoria||[]; if(PREF.memoria.some(x=>x.toLowerCase()===txt.toLowerCase())) return false; PREF.memoria.push(txt); PREF.memoria=PREF.memoria.slice(-30); guardarPref(); return true; }
+
 /* ---------- conversar con la IA ---------- */
 const CH={};
 const TONO='Tono: cálido y profesional a la vez. Cercano y respetuoso con las familias, claro, sin tecnicismos innecesarios, sin diminutivos ni frases empalagosas. Descriptivo y concreto. Español de Argentina.';
@@ -908,6 +927,7 @@ function chatCtx(key){
       aplicar:t=>{ t=t.split('[NOMBRE]').join(al.nombre); if(t.length>LIMITE) t=t.slice(0,LIMITE); setTexto(s,e,al,a,t,true); },
       contexto: obs? `Texto de «Observaciones generales» del informe de la ${etapaTxt(e)} etapa de un/a estudiante de Sala de ${s.edad} años (Córdoba). Suele llevar el saludo y agradecimiento a las familias y, si la docente lo pide, una síntesis breve de la etapa. Lo leen las familias.` : datosArea(s,e,al,a),
       largo: !obs, cidi: !obs && cidiDe(a).length>0,
+      extra: [memoriaPrompt(), obs? '' : otrosInformes(s,e,al,a)].filter(Boolean).join('\n\n'),
       reglas:`- Un solo párrafo, sin viñetas ni títulos, en tercera persona.\n- Escribí [NOMBRE] donde va el nombre del estudiante.\n- ${obs? `Nunca más de ${LIMITE} caracteres.` : LARGO}\n- Sin etiquetas, diagnósticos ni comparaciones con otros niños.\n${SIN_NIVEL}\n- Evaluá solo lo trabajado en esta etapa.${obs?'':'\n'+ESTRUCTURA.replace(/\n- Seguí las indicaciones de VARIACIÓN[^\n]*/,'')+'\n'+PROPUESTAS.replace('','')+'\n\n'+ESTILO+'\n'+EVITAR+'\n\n'+BANCO+'\n\n'+ejemplosPara(lista(s,e,a).map(x=>[x,null,evOf(s,e,x.id,al.id)]).filter(z=>z[2]&&z[2].n))}`,
       sabe: obs? '' : sabeIA(s,e,a)};
   }
@@ -951,9 +971,13 @@ ${X.reglas}
 - No inventes logros, dificultades, actividades ni datos: usá solo lo registrado, lo que ya está escrito y lo que la docente te cuente en esta conversación.
 - Respetá lo que la docente ya escribió o corrigió, salvo que te pida cambiarlo.
 - Si te hace una pregunta o un comentario que no pide cambios, respondé y no propongas versión nueva.
+- CONVERSÁ DE VERDAD: si el pedido es ambiguo, si te falta un dato para hacerlo bien o si ves dos caminos posibles, preguntale antes de cambiar el texto (dejá «texto» vacío). Por ejemplo: «¿Querés que lo saque del todo o que lo diga de forma más suave?», «¿Esto lo viste en el proyecto o en la rutina de la sala?».
+- Cuando proponés una versión, contale en pocas oraciones qué cambiaste y por qué. A veces (no siempre) cerrá con una sugerencia o una pregunta para seguir construyendo juntas.
+- Si te cuenta algo del niño o la niña, mostrale que lo entendiste y decile dónde lo sumaste.
+- Tené en cuenta lo que ya hablaron en esta conversación, la MEMORIA y los otros informes: si te pide que no sea igual al anterior, cambiá de verdad el comienzo, el orden y las expresiones.
 ${X.largo?`- Si la versión que proponés (o el texto actual, si no proponés) tiene menos de 1.300 caracteres, terminá tu "respuesta" sugiriendo en una pregunta breve una o dos cosas concretas que se podrían sumar: un eje de CiDi relacionado que todavía no aparece, un aprendizaje marcado sin ninguna situación concreta, o una nota de la docente. Ejemplo: «¿Querés que sume algo sobre cómo participa en las conversaciones? Es un eje de CiDi y todavía no aparece».
 `:''}`;
-  const conv=`${hist?`\nCONVERSACIÓN HASTA AHORA:\n${hist}\n`:''}
+  const conv=`${X.extra?'\n'+X.extra+'\n':''}${hist?`\nCONVERSACIÓN HASTA AHORA:\n${hist}\n`:''}
 PEDIDO NUEVO DE LA DOCENTE:
 ${pedido}
 `;
@@ -961,12 +985,12 @@ ${pedido}
 PROYECTO ACTUAL (JSON):
 ${base}
 ${conv}
-Respondé solo con JSON: {"respuesta":"lo que le decís a la docente, en voseo, como una colega pedagoga: cálido, profesional y concreto (entre 1 y 5 oraciones; podés explicar qué cambiaste y por qué)","cambios":{solo los campos que cambiás, con el valor completo nuevo; "sec" es una lista de textos}}. Si no cambiás nada, "cambios" va vacío.`;
+Respondé solo con JSON: {"respuesta":"lo que le decís a la docente, en voseo, como una colega pedagoga: cálido, profesional y concreto (entre 1 y 5 oraciones; podés explicar qué cambiaste y por qué)","recordar":"solo si expresó una preferencia general para todos sus trabajos; si no, vacío","cambios":{solo los campos que cambiás, con el valor completo nuevo; "sec" es una lista de textos}}. Si no cambiás nada, "cambios" va vacío.`;
   return comun+`
 TEXTO ACTUAL:
 ${base||'(vacío)'}
 ${conv}
-Respondé solo con JSON: {"respuesta":"lo que le decís a la docente, en voseo, como una colega pedagoga: cálido, profesional y concreto. Podés darle tu opinión, explicar brevemente qué cambiaste y por qué, o hacerle una pregunta. Entre 1 y 5 oraciones; si te pide tu mirada pedagógica, podés extenderte con una lista corta numerada","texto":"la versión nueva completa del texto en un solo bloque, o vacío si no hay cambios"}`;
+Respondé solo con JSON: {"respuesta":"lo que le decís a la docente, en voseo, como una colega pedagoga: cálido, profesional y concreto. Podés darle tu opinión, explicar brevemente qué cambiaste y por qué, o hacerle una pregunta. Entre 1 y 5 oraciones; si te pide tu mirada pedagógica, podés extenderte con una lista corta numerada","texto":"la versión nueva completa del texto en un solo bloque, o vacío si no hay cambios (por ejemplo, si preguntás algo)","recordar":"solo si la docente expresó una preferencia general para TODOS sus informes (p. ej. «no me gusta la palabra X», «de ahora en más…», «nunca pongas…»): escribila en una frase breve e impersonal; si no, vacío"}`;
 }
 function limpiarCambios(c){
   const o={}; if(!c||typeof c!=='object') return o;
@@ -977,40 +1001,46 @@ function limpiarCambios(c){
 }
 async function chatEnviar(key,pedido){
   pedido=String(pedido||'').trim(); if(!pedido||!ST.sample) return;
-  const C=CH[key]||(CH[key]={msgs:[]}), X=chatCtx(key); if(!X||C.ocupado) return;
+  const C=chatDe(key), X=chatCtx(key); if(!X||C.ocupado) return; if(!X.extra) X.extra=memoriaPrompt();
   const ult=[...C.msgs].reverse().find(m=>m.r==='ia'&&(m.txt||m.cambios));
   const pend=ult&&!ult.usado? ult : null;
   const base = X.tipo==='texto'? (pend? pend.txt : X.base()) : X.base(pend? pend.cambios : null);
-  const hist=C.msgs.slice(-8).map(m=>m.r==='u'? 'Docente: '+m.t : 'Vos: '+(m.t||'')+(m.txt||m.cambios?' [propusiste una versión nueva]':'')).join('\n');
+  const hist=C.msgs.slice(-10).map(m=>m.r==='u'? 'Docente: '+m.t : 'Vos: '+(m.t||'')+(m.txt||m.cambios?' [propusiste una versión nueva]':'')).join('\n');
   C.msgs.push({r:'u',t:pedido.startsWith('Desarrollalo más,')?'Desarrollalo más':pedido===PEDIDO_CIDI?'¿Qué falta de CiDi?':pedido===PEDIDO_MIRADA?'Tu mirada pedagógica':pedido}); UI.chatDraft=''; C.ocupado=true; C.ctl=new AbortController(); render(); chatScroll();
   try{
-    const out=await ST.sample.json(chatPrompt(X,base,hist,pedido),{cache:false,signal:C.ctl.signal});
+    const pr=chatPrompt(X,base,hist,pedido);
+    let out; try{ out=await ST.sample.json(pr,{cache:false,signal:C.ctl.signal}); }
+    catch(e1){ if(e1?.code==='cancelled') throw e1; out=await ST.sample.json(pr+'\n\nIMPORTANTE: tu respuesta tiene que ser SOLO el objeto JSON pedido, válido, sin texto antes ni después. Si querés preguntarle algo a la docente, ponelo en "respuesta" y dejá "texto" vacío.',{cache:false,signal:C.ctl.signal}); }
     const m={r:'ia',t:String(out?.respuesta||'').trim()};
     if(X.tipo==='texto'){ let tx=sinEvitar(String(out?.texto||'').trim().replace(/^["«]|["»]$/g,'')); if(key.startsWith('inf')) tx=tx.replace(/\s*\n+\s*/g,' '); if(tx&&tx!==base){ if(tx.length>LIMITE&&key.startsWith('inf')) tx=tx.slice(0,LIMITE); m.txt=tx; } }
     else { const c=limpiarCambios(out?.cambios); if(Object.keys(c).length) m.cambios=c; }
     if(!m.t&&!m.txt&&!m.cambios) m.t='No me salió una respuesta. ¿Me lo pedís de otra forma?';
+    if(out?.recordar && recordar(out.recordar)) m.rec=String(out.recordar).trim().slice(0,240);
     C.msgs.push(m);
   }catch(err){ if(err?.code!=='cancelled') C.msgs.push({r:'ia',t:errIA(err).replace('No se pudo mejorar el texto.','No pude responder.')}); }
-  C.ocupado=false; C.ctl=null; render(); chatScroll();
+  C.ocupado=false; C.ctl=null; guardarChat(key); render(); chatScroll();
 }
 function chatUsar(key,i){
   const C=CH[key], X=chatCtx(key), m=C&&C.msgs[i]; if(!m||!X) return;
   X.aplicar(m.txt||m.cambios); C.msgs.forEach(x=>{ if(x.r==='ia') x.usado=false; }); m.usado=true;
-  render(); toast(X.tipo==='proy'?'Listo, los cambios quedaron en el proyecto':'Listo, el texto quedó guardado'); chatScroll();
+  guardarChat(key); render(); toast(X.tipo==='proy'?'Listo, los cambios quedaron en el proyecto':'Listo, el texto quedó guardado'); chatScroll();
 }
 function chatScroll(){ setTimeout(()=>{ document.querySelectorAll('.propEd').forEach(autosize); const b=$('#chatMsgs'); if(b) b.scrollTop=b.scrollHeight; const i=$('#chatIn'); if(i&&!i.disabled) i.focus({preventScroll:true}); },0); }
 function chatBoton(key){ if(!ST.sample) return ''; const ab=UI.chat===key; return `<button class="btn sm${ab?' activo':''}" data-act="chatAbrir" data-k="${esc(key)}" aria-expanded="${ab}">${ab?'Cerrar conversación':'Conversar con la IA'}</button>`; }
 function chatPanel(key){
   if(!ST.sample||UI.chat!==key) return '';
-  const C=CH[key]||(CH[key]={msgs:[]}), X=chatCtx(key); if(!X) return '';
+  const C=chatDe(key), X=chatCtx(key); if(!X) return '';
+  const MEM=(PREF.memoria||[]);
   const verCambios=c=>Object.entries(c).map(([k,v])=>`<details class="cambio"><summary>${esc(CAMPOS_PROY[k])}</summary><div>${k==='sec'? v.map((x,j)=>`<p><b>Encuentro ${j+1}.</b> ${esc(x)}</p>`).join('') : `<p>${esc(v)}</p>`}</div></details>`).join('');
   const hola = X.tipo==='proy'
     ? 'Partimos del proyecto como está. Pedime cambios con tus palabras: «hacelo más lúdico», «sumá una visita a la plaza», «el encuentro 3 es muy largo»… Te propongo los cambios y vos decidís si los aplicás.'
     : `${PREF.nombre?'¡Hola, '+esc(PREF.nombre)+'! ':''}Partimos del texto de arriba. Contame lo que viste de este niño o niña, pedime cambios con tus palabras o pedime mi mirada pedagógica: te digo qué valoro, qué cambiaría y por qué, y te propongo una versión. Vos decidís qué queda.`;
   return `<div class="chat" role="region" aria-label="Conversación con la IA">
+    ${MEM.length?`<details class="chat-mem"><summary class="small">Lo que recuerdo de cómo te gusta trabajar (${MEM.length})</summary><ul>${MEM.map((x,i)=>`<li><span>${esc(x)}</span> <button type="button" class="btn ghost sm" data-act="memBorrar" data-i="${i}" aria-label="Olvidar: ${esc(x)}">Olvidar</button></li>`).join('')}</ul></details>`:''}
+    ${C.msgs.length?`<div class="row" style="justify-content:flex-end;margin:-4px 0 0"><button type="button" class="btn ghost sm" data-act="chatNueva" data-k="${esc(key)}">Empezar conversación nueva</button></div>`:''}
     ${X.sabe?`<p class="small muted chat-sabe" style="margin:0"><b>La IA sabe:</b> ${esc(X.sabe)}. Para cambiar qué aprendizaje va con cada propuesta o sumar un resumen, usá «Elegir aprendizajes».</p>`:''}
     <div class="chat-msgs" id="chatMsgs" aria-live="polite">${C.msgs.length?'':`<p class="chat-hola">${hola}</p>`}
-    ${C.msgs.map((m,i)=> m.r==='u'? `<div class="msg u">${esc(m.t)}</div>` : `<div class="msg ia">${m.t?`<p>${esc(X.ver?X.ver(m.t):m.t)}</p>`:''}${m.txt?`<textarea class="prop propEd" data-chatedit="${i}" data-k="${esc(key)}" aria-label="Versión propuesta (podés editarla)">${esc(X.ver(m.txt))}</textarea><div class="small muted" style="margin-top:4px">Podés editarla acá antes de usarla.</div>`:''}${m.cambios?`<div class="prop">${verCambios(m.cambios)}</div>`:''}${m.txt||m.cambios?`<div class="row" style="margin-top:8px">${m.usado?`<span class="pill ok">${X.tipo==='proy'?'Aplicado':'En uso'}</span>`:`<button class="btn pri sm" data-act="chatUsar" data-k="${esc(key)}" data-i="${i}">${X.usar}</button>`}</div>`:''}</div>`).join('')}
+    ${C.msgs.map((m,i)=> m.r==='u'? `<div class="msg u">${esc(m.t)}</div>` : `<div class="msg ia">${m.t?`<p>${esc(X.ver?X.ver(m.t):m.t)}</p>`:''}${m.rec?`<p class="small" style="margin-top:6px;opacity:.85">📌 Lo guardé para tus próximos informes: «${esc(m.rec)}»</p>`:''}${m.txt?`<textarea class="prop propEd" data-chatedit="${i}" data-k="${esc(key)}" aria-label="Versión propuesta (podés editarla)">${esc(X.ver(m.txt))}</textarea><div class="small muted" style="margin-top:4px">Podés editarla acá antes de usarla.</div>`:''}${m.cambios?`<div class="prop">${verCambios(m.cambios)}</div>`:''}${m.txt||m.cambios?`<div class="row" style="margin-top:8px">${m.usado?`<span class="pill ok">${X.tipo==='proy'?'Aplicado':'En uso'}</span>`:`<button class="btn pri sm" data-act="chatUsar" data-k="${esc(key)}" data-i="${i}">${X.usar}</button>`}</div>`:''}</div>`).join('')}
     ${C.ocupado?'<div class="msg ia pensando">Escribiendo…</div>':''}</div>
     <div class="chips chat-rap">${RAPIDOS[X.tipo].filter(r=>(r!=='Desarrollalo más'||X.largo)&&(r!=='¿Qué falta de CiDi?'||X.cidi)).map(r=>`<button type="button" class="chip" data-act="chatRap" data-k="${esc(key)}" data-t="${esc(r)}"${C.ocupado?' disabled':''}>${esc(r)}</button>`).join('')}</div>
     <div class="chat-in"><textarea id="chatIn" rows="2" placeholder="${SR?'Escribí o tocá el micrófono para dictar qué querés cambiar o sumar…':'Escribí qué querés cambiar o sumar…'}" aria-label="Mensaje para la IA">${esc(UI.chatDraft||'')}</textarea>${C.ocupado?'':micBoton()}${C.ocupado?`<button class="btn sm" data-act="chatParar" data-k="${esc(key)}">Detener</button>`:`<button class="btn pri sm" data-act="chatEnviar" data-k="${esc(key)}">Enviar</button>`}</div>
@@ -1194,7 +1224,7 @@ function aplicarPref(){ const r=document.documentElement; r.setAttribute('data-p
 async function guardarPref(){
   aplicarPref();
   try{ localStorage.setItem('cuaderno-pref',JSON.stringify(PREF)); }catch(e){}
-  if(ST.mode==='db'){ try{ await ST.db.collection('data/users/'+ST.uid).doc('v2prefs').set({tema:PREF.tema,letra:PREF.letra,nombre:PREF.nombre,efem:PREF.efem!==false}); }catch(e){} }
+  if(ST.mode==='db'){ try{ await ST.db.collection('data/users/'+ST.uid).doc('v2prefs').set({tema:PREF.tema,letra:PREF.letra,nombre:PREF.nombre,efem:PREF.efem!==false,memoria:(PREF.memoria||[]).slice(-30)}); }catch(e){} }
 }
 aplicarPref();
 function panelApariencia(){
@@ -1974,6 +2004,8 @@ document.addEventListener('click', ev=>{
     chatRap(){ chatEnviar(d.k, d.t==='Tu mirada pedagógica'? PEDIDO_MIRADA : d.t==='¿Qué falta de CiDi?'? PEDIDO_CIDI : d.t==='Desarrollalo más'? 'Desarrollalo más, hasta unos 1.500 caracteres: precisá cómo logra cada aprendizaje con las observaciones, las notas y las actividades, manteniendo la estructura aprendizaje → cómo lo logra → dónde se vio. Sin relato, sin cierre sobre lo que sigue y sin inventar nada.' : d.t); },
     chatParar(){ CH[d.k]?.ctl?.abort(); },
     chatUsar(){ chatUsar(d.k, +d.i); },
+    memBorrar(){ (PREF.memoria||[]).splice(+d.i,1); guardarPref(); render(); toast('Listo, lo olvidé'); },
+    chatNueva(){ CH[d.k]={msgs:[]}; const s=cur(); if(s&&s.chats) delete s.chats[d.k]; persist(); render(); chatScroll(); },
     quitarProy(){ const a=d.area, x=proysArea(s,e,a)[+d.i]; if(!x) return; quitarProy(s,e,a,x.t); render(); toast('Quitado. Los aprendizajes que también están en otra propuesta siguen.'); },
     revisado(){ const R=(s.rev[e][d.al]=s.rev[e][d.al]||{c:[],ok:false}); R.ok=d.v==='1'; persist(); render(); if(R.ok) toast('Informe marcado como revisado'); }
   };
