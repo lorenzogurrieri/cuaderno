@@ -75,10 +75,12 @@
   async function ia(input, opts = {}, json){
     const body = {prompt: typeof input === 'string' ? input : (input.at(-1)?.content || ''), json: !!json, tier: opts.modelTier || 'default'};
     if(opts.images?.length) body.images = await Promise.all(opts.images.slice(0,4).map(aB64));
+    const pedir = async tok => { try{ return await fetch(C.supabaseUrl+'/functions/v1/ia', {method:'POST', headers:{'content-type':'application/json', apikey: C.supabaseAnonKey, authorization:'Bearer '+(tok||'')}, body: JSON.stringify(body), signal: opts.signal}); }
+      catch(e){ if(e?.name==='AbortError') throw {code:'cancelled'}; throw {code:'error'}; } };
     const {data} = await sb.auth.getSession();
-    let r;
-    try{ r = await fetch(C.supabaseUrl+'/functions/v1/ia', {method:'POST', headers:{'content-type':'application/json', apikey: C.supabaseAnonKey, authorization:'Bearer '+(data.session?.access_token||'')}, body: JSON.stringify(body), signal: opts.signal}); }
-    catch(e){ if(e?.name==='AbortError') throw {code:'cancelled'}; throw {code:'error'}; }
+    let r = await pedir(data.session?.access_token);
+    if(r.status===401){ const x = await sb.auth.refreshSession().catch(() => ({})); if(x?.data?.session) r = await pedir(x.data.session.access_token); }
+    if(r.status===502 && !opts.signal?.aborted){ await new Promise(ok => setTimeout(ok, 1500)); r = await pedir((await sb.auth.getSession()).data.session?.access_token); }
     const out = await r.json().catch(() => ({}));
     if(r.status===429) throw {code:'rate_limited'};
     if(r.status===401) throw {code:'session_expired'};
@@ -86,7 +88,24 @@
     return out;
   }
   const sample = async (input, opts) => { const o = await ia(input, opts, false); return {text: o.text || '', truncated: false}; };
-  sample.json = async (input, opts) => (await ia(input, opts, true)).json;
+  // Pedimos texto y leemos el JSON acá, tolerando saltos de línea y comillas sin escapar.
+  function leerJSON(t){
+    t = String(t||'').replace(/^```(?:json)?\s*/i,'').replace(/```\s*$/,'');
+    const i = t.indexOf('{'), j = t.lastIndexOf('}'); if(i<0 || j<=i) return null;
+    t = t.slice(i, j+1);
+    try{ return JSON.parse(t); }catch{}
+    let o = '', dentro = false;
+    for(let k=0; k<t.length; k++){
+      const c = t[k];
+      if(!dentro){ o += c; if(c==='"') dentro = true; continue; }
+      if(c==='\\'){ o += c + (t[k+1]||''); k++; continue; }
+      if(c==='"'){ const resto = t.slice(k+1).match(/^\s*(.)/); if(!resto || /[,}\]:]/.test(resto[1])){ o += c; dentro = false; } else o += '\\"'; continue; }
+      if(c==='\n'){ o += '\\n'; continue; } if(c==='\r') continue; if(c==='\t'){ o += '\\t'; continue; }
+      o += c;
+    }
+    try{ return JSON.parse(o); }catch{ return null; }
+  }
+  sample.json = async (input, opts) => { const o = await ia(input, opts, false); const j = leerJSON(o.text); if(!j) throw {code:'invalid_json'}; return j; };
   sample.limits = async () => ({images: true});
   // ¿Está activada la IA? (si falta la clave en el servidor, no mostramos los botones de IA)
   const iaActiva = fetch(C.supabaseUrl+'/functions/v1/ia', {method:'POST', headers:{'content-type':'application/json', apikey: C.supabaseAnonKey}, body:'{}'})
