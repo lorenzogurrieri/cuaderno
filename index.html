@@ -978,7 +978,7 @@ ${X.reglas}
 - Cuando proponés una versión, contale en pocas oraciones qué cambiaste y por qué. A veces (no siempre) cerrá con una sugerencia o una pregunta para seguir construyendo juntas.
 - Si te cuenta algo del niño o la niña, mostrale que lo entendiste y decile dónde lo sumaste.
 - Tené en cuenta lo que ya hablaron en esta conversación, la MEMORIA y los otros informes: si te pide que no sea igual al anterior, cambiá de verdad el comienzo, el orden y las expresiones.
-${X.largo?`- Si la versión que proponés (o el texto actual, si no proponés) tiene menos de 1.300 caracteres, terminá tu "respuesta" sugiriendo en una pregunta breve una o dos cosas concretas que se podrían sumar: un eje de CiDi relacionado que todavía no aparece, un aprendizaje marcado sin ninguna situación concreta, o una nota de la docente. Ejemplo: «¿Querés que sume algo sobre cómo participa en las conversaciones? Es un eje de CiDi y todavía no aparece».
+${X.largo?`- Si la versión que proponés (o el texto actual, si no proponés) tiene menos de 1.300 caracteres, terminá tu "respuesta" sugiriendo en una pregunta breve una o dos cosas concretas que se podrían sumar: un eje de CiDi relacionado que todavía no aparece, una actividad concreta del proyecto donde se vio un aprendizaje, un aprendizaje marcado sin ninguna situación concreta, o una nota de la docente. Ejemplo: «¿Querés que sume algo sobre cómo participa en las conversaciones? Es un eje de CiDi y todavía no aparece».
 `:''}`;
   const conv=`${X.extra?'\n'+X.extra+'\n':''}${hist?`\nCONVERSACIÓN HASTA AHORA:\n${hist}\n`:''}
 PEDIDO NUEVO DE LA DOCENTE:
@@ -1006,6 +1006,7 @@ async function chatEnviar(key,pedido){
   if(key.startsWith('area|')) return areaEnviar(key,pedido);
   pedido=String(pedido||'').trim(); if(!pedido||!ST.sample) return;
   const C=chatDe(key), X=chatCtx(key); if(!X||C.ocupado) return; if(!X.extra) X.extra=memoriaPrompt();
+  if(key.startsWith('inf|')&&PIDE_DESARROLLO.test(pedido)){ const [,e1,,a1]=key.split('|'); const ip=a1!=='obs'? infoProyectos(cur(),e1,a1) : ''; if(ip) X.extra=[X.extra,ip].filter(Boolean).join('\n\n'); }
   const ult=[...C.msgs].reverse().find(m=>m.r==='ia'&&(m.txt||m.cambios));
   const pend=ult&&!ult.usado? ult : null;
   const base = X.tipo==='texto'? (pend? pend.txt : X.base()) : X.base(pend? pend.cambios : null);
@@ -1121,7 +1122,7 @@ async function areaEnviar(key,pedido){
       const otros=otrosInformes(s,e,al,a,mencion);
       const yaSug=C.msgs.some(m=>m.r==='ia'&&m.al===al.id&&/(quer[eé]s que (sume|agregue)|se podr[ií]a sumar|podr[ií]amos sumar|qued[oó] corto|sigue corto|es corto)/i.test(m.t||''));
       X.largo=X.largo&&!yaSug;
-      X.extra=[memoriaPrompt(), otros, otrasAreas(s,e,al,a), `CONVERSACIÓN DE ÁREA: con la docente van trabajando los informes de todo el grupo en este mismo hilo. Ahora están con [NOMBRE]. Los mensajes marcados «sobre otro nombre» son de otros niños: usalos para entender lo que ella busca (tono, preferencias, qué no quiere repetir), nunca para traer datos de esos niños a este texto.
+      X.extra=[memoriaPrompt(), otros, otrasAreas(s,e,al,a), PIDE_DESARROLLO.test(pedido)? infoProyectos(s,e,a) : '', `CONVERSACIÓN DE ÁREA: con la docente van trabajando los informes de todo el grupo en este mismo hilo. Ahora están con [NOMBRE]. Los mensajes marcados «sobre otro nombre» son de otros niños: usalos para entender lo que ella busca (tono, preferencias, qué no quiere repetir), nunca para traer datos de esos niños a este texto.
 REFERENCIAS DE CALIDAD: los modelos de esta escuela que te pasó la docente (los ejemplos y el BANCO DE EXPRESIONES) son tu vara de tono, fluidez y calidez: escribí con esa naturalidad, como una docente que conoce al niño o la niña, nunca con fórmulas.
 CÓMO CONVERSAR: variá cómo empezás tus respuestas (no arranques siempre con «¡Qué lindo!», «Perfecto» ni repitas la estructura de tu mensaje anterior). Si falta información para que el informe de [NOMBRE] sea fiel (por ejemplo, no hay observaciones), preguntale algo concreto en lugar de rellenar.`].filter(Boolean).join('\n\n');
       pr=chatPrompt(X,base,hist,N(pedido));
@@ -1216,6 +1217,21 @@ function resumenDe(s,t){
   const sec=(p.sec||[]).filter(x=>x&&x.trim());
   return [p.prop&&'Propósitos: '+p.prop, p.prod&&'Producto final: '+p.prod, sec.length&&'Encuentros: '+sec.slice(0,10).map((x,i)=>(i+1)+') '+x.slice(0,180)).join(' ')].filter(Boolean).join('\n').slice(0,2500);
 }
+function infoProyectos(s,e,a){
+  const temas=[...new Set(lista(s,e,a).flatMap(temasDe).filter(t=>t&&t.trim()))]; if(!temas.length) return '';
+  const bl=temas.map(t=>{
+    const r=((s.resumenes||{})[t]||'').trim(), d=((s.proyDet||{})[t]||'').trim(), x=((s.proyTxt||{})[t]||'').trim();
+    const p=proyArr(s).find(p=>p.t&&(t===temaDeProyecto(p.t)||t.toLowerCase().includes(String(p.t).toLowerCase())));
+    const sec=p? (p.sec||[]).filter(z=>z&&z.trim()) : [];
+    const pp=p? [p.prop&&'Propósitos: '+p.prop, p.estr&&'Estrategias: '+p.estr, p.prod&&'Producto final: '+p.prod, sec.length&&'Encuentros:\n'+sec.map((z,i)=>`${i+1}) ${z}`).join('\n')].filter(Boolean).join('\n') : '';
+    const partes=[r&&'Resumen de la docente: '+r, d&&'Actividades: '+d, pp, x&&'Texto del proyecto que subió la docente (extracto):\n'+x.slice(0,6000)].filter(Boolean);
+    return partes.length? `«${t}»\n${partes.join('\n')}` : '';
+  }).filter(Boolean);
+  if(!bl.length) return '';
+  return `INFORMACIÓN COMPLETA DE LOS PROYECTOS Y SECUENCIAS DE ESTA ÁREA (la docente pidió desarrollar más: usala). Para cada aprendizaje, buscá acá la actividad, el juego, el cuento, el material, la salida o el producto final en que se trabajó y usalo para situar con precisión dónde y cómo lo vivió [NOMBRE]. Contalo como la situación en la que se vio su aprendizaje (no narres el proyecto ni lo que hizo el grupo en general) y no le atribuyas logros que la docente no registró: lo que logra sale de sus registros; el proyecto aporta el contexto concreto. Respetá a qué propuesta pertenece cada aprendizaje.
+${bl.join('\n\n').slice(0,16000)}`;
+}
+const PIDE_DESARROLLO=/desarroll|alarg|m[aá]s largo|ampli[aá]|exten[dsc]|m[aá]s completo|m[aá]s contenido|sum[aá] m[aá]s/i;
 function porPropuesta(L){ const G=new Map(); for(const it of L){ const t=temasDe(it[0])[0]||''; if(!G.has(t)) G.set(t,[]); G.get(t).push(it); } return [...G.keys()].sort((x,y)=>(x?0:1)-(y?0:1)).map(t=>[t,G.get(t)]); }
 function datosPorPropuesta(s,L,fmt){
   if(!L.length) return '(todavía no marcó aprendizajes en esta área)';
@@ -1286,7 +1302,8 @@ async function buscarProy(a){
 Indicá qué aprendizajes de la lista se trabajan en el proyecto: los que figuran explícitamente o que sus actividades abordan con claridad. No incluyas los que no tienen relación con el proyecto. Si el proyecto no trabaja esta área, devolvé una lista vacía.
 Además, resumí en 3 a 6 líneas qué se trabaja en el proyecto: propósitos, actividades principales, salidas y producto final (sin nombres de niños).
 Los aprendizajes y las actividades pueden estar en partes distintas del documento (por ejemplo, la lista de aprendizajes arriba y el desarrollo de actividades abajo): cruzalos vos. Para cada aprendizaje que incluyas, buscá en el desarrollo la actividad o el encuentro donde más claramente se trabaja y describilo en una frase breve y concreta, como lo contaría la docente (ej.: «al jugar a la juguetería, cobrando y contando los billetes»). Si no encontrás una actividad clara para un aprendizaje, dejala vacía.
-Respondé solo con JSON: {"nombre":"<nombre del proyecto si figura, o cadena vacía>","resumen":"<resumen>","ids":["<id>", ...],"act":{"<id>":"<actividad breve>", ...}}
+Además, en «detalle», contá con más precisión las actividades concretas del proyecto (encuentro por encuentro o por momentos): qué hicieron, con qué materiales, juegos, cuentos, canciones, salidas o visitas, y el producto final. Hasta 1.800 caracteres, sin nombres de niños.
+Respondé solo con JSON: {"nombre":"<nombre del proyecto si figura, o cadena vacía>","resumen":"<resumen>","detalle":"<detalle>","ids":["<id>", ...],"act":{"<id>":"<actividad breve>", ...}}
 
 LISTA (id | aprendizaje):
 ${cands.map(o=>o.id+' | '+o.a).join('\n')}
@@ -1301,6 +1318,7 @@ ${P.img?'(está en la imagen adjunta)':P.texto.slice(0,40000)}`;
     if(!P.nombre && out?.nombre) P.nombre=String(out.nombre);
     const tema=temaDeProyecto(P.nombre), arr=(s.sel[e][a]=s.sel[e][a]||[]);
     if(tema && out?.resumen && !((s.resumenes||{})[tema]||'').trim()){ s.resumenes=s.resumenes||{}; s.resumenes[tema]=String(out.resumen).trim().slice(0,2500); }
+    if(tema){ s.proyDet=s.proyDet||{}; if(out?.detalle) s.proyDet[tema]=String(out.detalle).trim().slice(0,2500); if(P.texto.trim()){ s.proyTxt=s.proyTxt||{}; s.proyTxt[tema]=P.texto.trim().slice(0,15000); } }
     let nuevos=0;
     const acts=(out&&typeof out.act==='object'&&out.act)||{};
     for(const id of ids){ const act=String(acts[id]||'').trim().slice(0,300); let x=arr.find(y=>y.id===id);
@@ -2127,7 +2145,7 @@ document.addEventListener('click', ev=>{
     chatAbrir(){ micParar(); UI.chat = UI.chat===d.k? null : d.k; UI.chatDraft=''; render(); if(UI.chat) chatScroll(); },
     chatEnviar(){ const v=$('#chatIn')?.value; micParar(true); chatEnviar(d.k, v); },
     chatMic(){ micToggle(); },
-    chatRap(){ chatEnviar(d.k, d.t==='Tu mirada pedagógica'? PEDIDO_MIRADA : d.t==='¿Qué falta de CiDi?'? PEDIDO_CIDI : d.t==='Desarrollalo más'? 'Desarrollalo más, hasta unos 1.500 caracteres: precisá cómo logra cada aprendizaje con las observaciones, las notas y las actividades, manteniendo la estructura aprendizaje → cómo lo logra → dónde se vio. Sin relato, sin cierre sobre lo que sigue y sin inventar nada.' : d.t); },
+    chatRap(){ chatEnviar(d.k, d.t==='Tu mirada pedagógica'? PEDIDO_MIRADA : d.t==='¿Qué falta de CiDi?'? PEDIDO_CIDI : d.t==='Desarrollalo más'? 'Desarrollalo más, hasta unos 1.500 caracteres: precisá cómo logra cada aprendizaje con las observaciones, las notas, las actividades y la información de los proyectos (en qué juego, cuento, material, salida o producto final se vio), manteniendo la estructura aprendizaje → cómo lo logra → dónde se vio. Sin relato, sin cierre sobre lo que sigue y sin inventar nada.' : d.t); },
     chatParar(){ CH[d.k]?.ctl?.abort(); },
     chatUsar(){ chatUsar(d.k, +d.i); },
     memBorrar(){ (PREF.memoria||[]).splice(+d.i,1); guardarPref(); render(); toast('Listo, lo olvidé'); },
